@@ -63,3 +63,52 @@ impl CreateProductRequest {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_valid_product_request() {
+        let req = CreateProductRequest {
+            name: "High-Performance Rust Server".to_string(),
+            description: Some("Built with Axum".to_string()),
+            price: 99.99,
+            inventory_count: 50,
+        };
+        assert!(req.validate().is_ok());
+    }
+
+    #[test]
+    fn test_invalid_empty_name() {
+        let req = CreateProductRequest {
+            name: "   ".to_string(),
+            description: None,
+            price: 49.99,
+            inventory_count: 10,
+        };
+        assert_eq!(req.validate().unwrap_err(), "Product name cannot be empty");
+    }
+
+    #[test]
+    fn test_invalid_negative_price() {
+        let req = CreateProductRequest {
+            name: "Server".to_string(),
+            description: None,
+            price: -10.0,
+            inventory_count: 10,
+        };
+        assert_eq!(req.validate().unwrap_err(), "Price cannot be negative");
+    }
+
+    #[test]
+    fn test_invalid_negative_inventory() {
+        let req = CreateProductRequest {
+            name: "Server".to_string(),
+            description: None,
+            price: 10.0,
+            inventory_count: -5,
+        };
+        assert_eq!(req.validate().unwrap_err(), "Inventory count cannot be negative");
+    }
+}
