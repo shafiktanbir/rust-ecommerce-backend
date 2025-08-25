@@ -16,7 +16,7 @@ COPY . .
 ENV SQLX_OFFLINE=true
 RUN cargo build --release --bin ecommerce_lab
 
-# ─── Stage 3: Runtime ────────────────────────────────────────────────────────
+# ─── Stage 3: Hardened Non-Root Runtime ─────────────────────────────────────────
 FROM debian:bookworm-slim AS runtime
 WORKDIR /app
 
@@ -25,10 +25,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app/target/release/ecommerce_lab /app/ecommerce_lab
-COPY migrations /app/migrations
+RUN useradd -m -u 10001 -s /bin/bash appuser
 
-EXPOSE 8080 8081 8082 8083
+COPY --from=builder --chown=appuser:appuser /app/target/release/ecommerce_lab /app/ecommerce_lab
+COPY --from=builder --chown=appuser:appuser /app/migrations /app/migrations
+
+USER appuser
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
 
 CMD ["/app/ecommerce_lab"]
-
