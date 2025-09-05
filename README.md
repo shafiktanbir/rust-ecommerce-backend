@@ -16,19 +16,19 @@
 
 ```mermaid
 graph TD
-    Client[Client Traffic / k6 Load Tests] -->|HTTP / TLS| NGINX[NGINX Reverse Proxy / Load Balancer]
-    NGINX -->|Reverse Proxy :8080| Axum[Axum HTTP Engine (Tokio Threadpool)]
+    Client["Client Traffic / k6 Load Tests"] -->|HTTP / TLS| NGINX["NGINX Reverse Proxy / Load Balancer"]
+    NGINX -->|Reverse Proxy :8080| Axum["Axum HTTP Engine (Tokio Threadpool)"]
     
-    subgraph Core Domain Services
-        Axum -->|Extract & Verify Auth| Auth[JWT Auth Middleware]
-        Axum -->|Cache-Aside Pattern| Redis[(Redis Connection Pool)]
-        Axum -->|Transactional ACID Writes| PG[(PostgreSQL Primary DB)]
-        Axum -->|Transactional Outbox Pattern| Outbox[(Outbox Table)]
+    subgraph Core_Services ["Core Domain Services"]
+        Axum -->|Extract & Verify Auth| Auth["JWT Auth Middleware"]
+        Axum -->|Cache-Aside Pattern| Redis[("Redis Connection Pool")]
+        Axum -->|Transactional ACID Writes| PG[("PostgreSQL Primary DB")]
+        Axum -->|Transactional Outbox Pattern| Outbox[("Outbox Table")]
     end
 
-    subgraph Asynchronous Workers
-        Relay[Outbox Relay Worker] -->|Poll Pending Events| Outbox
-        Relay -->|Publish Events| Kafka[Kafka Event Stream / Notification Pipeline]
+    subgraph Async_Workers ["Asynchronous Workers"]
+        Relay["Outbox Relay Worker"] -->|Poll Pending Events| Outbox
+        Relay -->|Publish Events| Kafka["Kafka Event Stream / Notification Pipeline"]
     end
 ```
 
