@@ -1,3 +1,6 @@
+> 💡 **Available for Technical Consulting & High-Concurrency Architecture Audits:**  
+> [Book a 20-min System Teardown](https://shafiktanbir.com/?tab=book) · [Explore Full Case Studies](https://shafiktanbir.com)
+
 # 🦀 rust-ecommerce-backend — High-Performance Concurrent E-Commerce Engine
 
 [![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
@@ -127,3 +130,9 @@ Server binds to `http://localhost:8080`.
 docker build -t rust-ecommerce-backend:latest .
 docker run -p 8080:8080 --env-file .env rust-ecommerce-backend:latest
 ```
+
+---
+
+> 💡 **Available for Technical Consulting & High-Concurrency Architecture Audits:**  
+> [Book a 20-min System Teardown](https://shafiktanbir.com/?tab=book) · [Explore Full Case Studies](https://shafiktanbir.com)
+
