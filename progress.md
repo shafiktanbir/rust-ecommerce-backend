@@ -134,3 +134,22 @@ GET  /products/:uuid      → 200  {product}                    4ms
 
 **Next Session Goal:**
 Write `load-tests/v1_products.js` (k6 script), run baseline load test at 10/100/500 VUs, record results, and identify the first bottleneck. Then decide with evidence whether V2 = Redis or V2 = multiple instances.
+
+---
+
+## Resume & Interview Case Study Plan
+
+> *Plan for polishing this project as a high-impact portfolio case study after scaling milestones are complete.*
+
+### GitHub Repo Title:
+`rust-high-throughput-ecommerce-lab`
+
+### Resume Title:
+**High-Throughput E-Commerce Systems Engine in Rust** | *Rust, Axum, Tokio, PostgreSQL, k6, Playwright*
+
+### Key Resume Bullet Points:
+- **Architecture**: Designed a high-concurrency REST API in **Rust (Axum + Tokio)** using layered architecture (Service/Repository pattern) and compile-time verified SQL queries via `sqlx`.
+- **Benchmarking**: Conducted load testing with **k6**, achieving **1,220+ Requests/Sec (RPS)** with **67.89ms p95 latency** and **0.00% error rate** under 100 concurrent VUs.
+- **Performance Engineering**: Identified database connection pool queuing under 500 VUs using **Little's Law**; diagnosed PostgreSQL process thrashing when pool size was raised to 50 connections.
+- **Automated E2E Testing**: Developed an automated End-to-End API test suite using **Playwright** covering full product CRUD lifecycles and HTTP status validation.
+- **Target V2-V10 Case Study Additions**: Benchmark Redis caching (V2), multi-instance load balancing (V3), background job queue (V4), read replicas (V5), and K8s autoscaling (V7-V10).
