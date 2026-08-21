@@ -17,30 +17,68 @@
 //   Passing a reference (&PgPool) avoids even the clone cost.
 //   The pool is owned by AppState and lives for the entire program lifetime.
 
+use deadpool_redis::Pool as RedisPool;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
     errors::{AppError, AppResult},
     models::product::{CreateProductRequest, Product},
-    repositories::product_repository,
+    repositories::{cache_repository, product_repository},
 };
 
-pub async fn get_product(pool: &PgPool, id: Uuid) -> AppResult<Product> {
-    product_repository::get_product(pool, id)
+pub async fn get_product(pool: &PgPool, redis_pool: &RedisPool, id: Uuid) -> AppResult<Product> {
+    // 1. Try Redis Cache
+    if let Ok(Some(cached_product)) = cache_repository::get_product(redis_pool, id).await {
+        return Ok(cached_product);
+    }
+
+    // 2. Cache Miss -> Query PostgreSQL Database
+    let product = product_repository::get_product(pool, id)
         .await?
-        .ok_or(AppError::NotFound)
+        .ok_or(AppError::NotFound)?;
+
+    // 3. Populate Redis Cache
+    let _ = cache_repository::set_product(redis_pool, &product).await;
+
+    Ok(product)
 }
 
-pub async fn list_products(pool: &PgPool, limit: i64, offset: i64) -> AppResult<Vec<Product>> {
+pub async fn list_products(
+    pool: &PgPool,
+    redis_pool: &RedisPool,
+    limit: i64,
+    offset: i64,
+) -> AppResult<Vec<Product>> {
     let limit = limit.clamp(1, 100); // Never allow unbounded queries from clients
     let offset = offset.max(0);
-    product_repository::list_products(pool, limit, offset).await
+
+    // 1. Try Redis Cache
+    if let Ok(Some(cached_products)) = cache_repository::get_products_list(redis_pool, limit, offset).await {
+        return Ok(cached_products);
+    }
+
+    // 2. Cache Miss -> Query PostgreSQL Database
+    let products = product_repository::list_products(pool, limit, offset).await?;
+
+    // 3. Populate Redis Cache
+    let _ = cache_repository::set_products_list(redis_pool, limit, offset, &products).await;
+
+    Ok(products)
 }
 
-pub async fn create_product(pool: &PgPool, req: CreateProductRequest) -> AppResult<Product> {
+pub async fn create_product(
+    pool: &PgPool,
+    redis_pool: &RedisPool,
+    req: CreateProductRequest,
+) -> AppResult<Product> {
     // Business rule validation
     req.validate().map_err(AppError::Validation)?;
 
-    product_repository::create_product(pool, &req).await
+    let product = product_repository::create_product(pool, &req).await?;
+
+    // Set product cache
+    let _ = cache_repository::set_product(redis_pool, &product).await;
+
+    Ok(product)
 }

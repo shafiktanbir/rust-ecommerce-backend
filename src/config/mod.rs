@@ -13,6 +13,8 @@
 #[derive(Debug, Clone)]
 pub struct AppConfig {
     pub database_url: String,
+    pub redis_url: String,
+    pub jwt_secret: String,
     pub app_port: u16,
     pub app_env: String,
 }
@@ -26,6 +28,12 @@ impl AppConfig {
         let database_url =
             std::env::var("DATABASE_URL").expect("DATABASE_URL must be set in environment");
 
+        let redis_url = std::env::var("REDIS_URL")
+            .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+
+        let jwt_secret = std::env::var("JWT_SECRET")
+            .unwrap_or_else(|_| "supersecret_jwt_key_ecommerce_lab_2026".to_string());
+
         let app_port = std::env::var("APP_PORT")
             .unwrap_or_else(|_| "8080".to_string())
             .parse::<u16>()
@@ -35,6 +43,8 @@ impl AppConfig {
 
         AppConfig {
             database_url,
+            redis_url,
+            jwt_secret,
             app_port,
             app_env,
         }

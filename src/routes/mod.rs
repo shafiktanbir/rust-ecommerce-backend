@@ -21,17 +21,23 @@
 //   PgPool satisfies all of these.
 
 use axum::{
-    Router,
     routing::{get, post},
+    Router,
 };
+use deadpool_redis::Pool as RedisPool;
 use sqlx::PgPool;
 
-use crate::handlers::{health, products};
+use crate::{
+    config::AppConfig,
+    handlers::{auth, health, orders, products},
+};
 
 /// Shared application state — injected into every handler via State<AppState>
 #[derive(Clone)]
 pub struct AppState {
     pub db: PgPool,
+    pub redis: RedisPool,
+    pub config: AppConfig,
 }
 
 /// Build the complete application router with all routes registered.
@@ -39,10 +45,17 @@ pub fn create_router(state: AppState) -> Router {
     Router::new()
         // Health
         .route("/health", get(health::health_check))
+        // Auth
+        .route("/auth/register", post(auth::register))
+        .route("/auth/login", post(auth::login))
         // Products
         .route("/products", get(products::list_products))
         .route("/products", post(products::create_product))
         .route("/products/:id", get(products::get_product))
+        // Orders
+        .route("/orders", post(orders::create_order))
+        .route("/orders", get(orders::list_orders))
+        .route("/orders/:id", get(orders::get_order))
         // Attach shared state
         .with_state(state)
 }

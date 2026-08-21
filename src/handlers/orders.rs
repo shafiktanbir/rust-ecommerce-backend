@@ -1,0 +1,51 @@
+// src/handlers/orders.rs
+
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    Json,
+};
+use uuid::Uuid;
+
+use crate::{
+    errors::{AppError, AppResult},
+    middleware::auth::AuthUser,
+    models::order::{CreateOrderDto, Order, OrderResponseDto},
+    routes::AppState,
+    services::order_service,
+};
+
+pub async fn create_order(
+    State(state): State<AppState>,
+    AuthUser(claims): AuthUser,
+    Json(payload): Json<CreateOrderDto>,
+) -> AppResult<(StatusCode, Json<OrderResponseDto>)> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::Unauthorized("Invalid user ID in token".into()))?;
+
+    let order = order_service::create_order(&state.db, user_id, payload).await?;
+    Ok((StatusCode::CREATED, Json(order)))
+}
+
+pub async fn list_orders(
+    State(state): State<AppState>,
+    AuthUser(claims): AuthUser,
+) -> AppResult<Json<Vec<Order>>> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::Unauthorized("Invalid user ID in token".into()))?;
+
+    let orders = order_service::list_user_orders(&state.db, user_id).await?;
+    Ok(Json(orders))
+}
+
+pub async fn get_order(
+    State(state): State<AppState>,
+    AuthUser(claims): AuthUser,
+    Path(order_id): Path<Uuid>,
+) -> AppResult<Json<OrderResponseDto>> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::Unauthorized("Invalid user ID in token".into()))?;
+
+    let order = order_service::get_order(&state.db, order_id, user_id).await?;
+    Ok(Json(order))
+}

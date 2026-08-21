@@ -154,3 +154,12 @@ pub async fn create_pool(config: &AppConfig) -> PgPool {
         .await
         .expect("Failed to connect to PostgreSQL. Is Docker running? Is DATABASE_URL correct?")
 }
+
+/// Create and validate the Redis connection pool for V2 caching.
+pub fn create_redis_pool(config: &AppConfig) -> deadpool_redis::Pool {
+    let mut redis_config = deadpool_redis::Config::from_url(&config.redis_url);
+    redis_config.pool = Some(deadpool_redis::PoolConfig::new(100));
+    redis_config
+        .create_pool(Some(deadpool_redis::Runtime::Tokio1))
+        .expect("Failed to create Redis connection pool")
+}

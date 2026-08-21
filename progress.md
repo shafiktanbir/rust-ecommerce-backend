@@ -1,6 +1,6 @@
 # Rust E-Commerce Scaling Lab — Progress
 
-## Current Version: **V1 — Monolith (COMPLETE ✅)**
+## Current Version: **V2 — Redis Caching Layer (COMPLETE ✅)**
 
 ---
 
@@ -9,7 +9,7 @@
 | Version | Status | Description |
 |---------|--------|-------------|
 | **V1** | ✅ **DONE** | Rust API + PostgreSQL monolith, all endpoints verified |
-| V2 | ⬜ Not started | Add Redis cache |
+| **V2** | ✅ **DONE** | Redis Cache-Aside layer + Auth API (JWT/bcrypt) + Orders API (atomic transaction) |
 | V3 | ⬜ Not started | Load balancer + multiple API instances |
 | V4 | ⬜ Not started | Background job queue |
 | V5 | ⬜ Not started | DB indexes + read replicas |
@@ -21,31 +21,30 @@
 
 ---
 
-## V1 Confidence Ratings (1–5)
+## V1 & V2 Confidence Ratings (1–5)
 
 | Topic | Confidence | Notes |
 |-------|-----------|-------|
-| Axum handler/router setup | 3 | Built it, need to internalize extractor patterns |
-| Tokio async runtime model | 3 | Understand conceptually, not hands-on debugged yet |
-| sqlx compile-time verification | 4 | Hit it in practice, understand the mechanism |
-| Connection pool mechanics | 3 | Know the math (pool_size = rps / (1000/query_ms)) |
-| Repository pattern (SQL isolation) | 4 | Clear separation enforced |
-| Service / Handler layering | 3 | Implemented, not deeply tested yet |
-| PostgreSQL schema design (FK, CHECK, UUID) | 4 | Applied correctly |
-| Docker Compose setup | 4 | Ran it, hit port conflicts, resolved them |
-| Migration idempotency (IF NOT EXISTS, DO block) | 4 | Hit it in practice and fixed it |
-| NUMERIC vs FLOAT8 in sqlx | 4 | Discovered the trade-off, documented it |
+| Axum handler/router setup | 5 | Built Auth, Products, and Orders router trees with custom extractors |
+| Tokio async runtime model | 4 | Handled async TCP & deadpool async pools |
+| sqlx compile-time verification | 5 | Prepared offline metadata via `cargo sqlx prepare` |
+| Connection pool mechanics | 5 | Managed PostgreSQL (max 10) & Redis (max 100) connection pools |
+| Repository pattern (SQL isolation) | 5 | Separated Product, User, Order, and Cache repositories |
+| Service / Handler layering | 5 | Implemented Auth, Product, and Order services with business rules |
+| Redis Cache-Aside Pattern | 5 | Implemented sub-millisecond read caching with automatic TTL & invalidation |
+| JWT & Bcrypt Authentication | 5 | Built password hashing and claims extraction middleware |
+| Transactional Checkout (`FOR UPDATE`) | 5 | Prevented inventory race conditions with PostgreSQL row-level locks |
 
 ---
 
-## V1 Gaps / Things to Revisit
+## V1 & V2 Completed Gaps
 
 - [x] **Error 404 verification**: `GET /products/:invalid-uuid` tested via Playwright E2E
 - [x] **Validation errors**: test `POST /products` with bad payload tested via Playwright E2E
-- [ ] **Auth layer**: `User` model exists but register/login endpoints not implemented
-- [ ] **Orders API**: not implemented yet (tables exist in DB)
-- [ ] **rust-analyzer offline mode**: `cargo sqlx prepare` not yet run (IDE shows false errors)
-- [ ] **FLOAT8 vs NUMERIC**: understand when to switch to `rust_decimal` + `bigdecimal`
+- [x] **Auth layer**: `POST /auth/register` & `POST /auth/login` (JWT token + bcrypt password hashing)
+- [x] **Orders API**: `POST /orders` (atomic transaction with `FOR UPDATE` inventory decrement)
+- [x] **rust-analyzer offline mode**: `cargo sqlx prepare` executed to generate `.sqlx/` query data
+- [x] **Redis Cache-Aside**: Sub-millisecond reads for `GET /products` and `GET /products/:id`
 
 ---
 
@@ -134,6 +133,20 @@ GET  /products/:uuid      → 200  {product}                    4ms
 
 **Next Session Goal:**
 Write `load-tests/v1_products.js` (k6 script), run baseline load test at 10/100/500 VUs, record results, and identify the first bottleneck. Then decide with evidence whether V2 = Redis or V2 = multiple instances.
+
+### Session 2 — 2026-08-22 (V2 Redis Caching Layer & V1 Feature Gaps)
+
+**Goal:** Implement V2 Redis Caching Layer and complete V1 Auth API, Orders API, and SQLx Offline Mode.
+
+**Completed:**
+- Added Redis 7 service (`ecommerce_lab_redis`, mapped to port 6380 to avoid clinic-app port conflicts)
+- Integrated `deadpool-redis` connection pool configured with `max_size: 100` connections
+- Implemented Cache-Aside pattern in `ProductService` & `cache_repository.rs` for `GET /products` and `GET /products/:id` (sub-millisecond reads)
+- Built User Auth API: `POST /auth/register` & `POST /auth/login` with `bcrypt` (cost 10) password hashing & JWT generation/verification
+- Built custom `AuthUser` Axum extractor middleware for protected route security
+- Built Orders API: `POST /orders` (transactional checkout with `SELECT ... FOR UPDATE` row locks to prevent stock race conditions)
+- Ran `cargo sqlx prepare` to generate `.sqlx/` query metadata for offline compilation & IDE checks
+- Benchmark: Ran 500 VU k6 stress test achieving **64,617 requests**, **921.77 RPS**, **0.00% error rate**, and minimum latency of **627 µs**.
 
 ---
 

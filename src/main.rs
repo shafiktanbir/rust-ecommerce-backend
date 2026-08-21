@@ -60,17 +60,20 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    tracing::info!("Starting Ecommerce Lab V1");
+    tracing::info!("Starting Ecommerce Lab V2 (Redis Caching)");
 
     // ─── Step 3: Load application config ────────────────────────────────────────
     let config = config::AppConfig::from_env();
     tracing::info!(port = config.app_port, env = %config.app_env, "Configuration loaded");
 
-    // ─── Step 4: Create database connection pool ──────────────────────────────────
+    // ─── Step 4: Create database & Redis connection pools ──────────────────────────
     // This is async because it establishes real TCP connections to PostgreSQL.
     // If this panics, check: is Docker running? Is DATABASE_URL correct?
     let pool = db::create_pool(&config).await;
     tracing::info!("Database connection pool established (max_connections=10)");
+
+    let redis_pool = db::create_redis_pool(&config);
+    tracing::info!("Redis connection pool established for V2 caching");
 
     // ─── Step 5: Run pending migrations ─────────────────────────────────────────
     // sqlx::migrate! embeds all files from the `migrations/` directory at compile time.
@@ -82,7 +85,11 @@ async fn main() {
     tracing::info!("Database migrations applied successfully");
 
     // ─── Step 6: Build the application router ───────────────────────────────────
-    let state = AppState { db: pool };
+    let state = AppState {
+        db: pool,
+        redis: redis_pool,
+        config: config.clone(),
+    };
     let app = routes::create_router(state)
         // TraceLayer logs every request: method, path, status, latency
         // This is your first observability layer — you'll rely on it heavily
@@ -96,7 +103,9 @@ async fn main() {
 
     tracing::info!("Server listening on http://{}", addr);
     tracing::info!("Health check: http://{}/health", addr);
+    tracing::info!("Auth API: http://{}/auth/register | http://{}/auth/login", addr, addr);
     tracing::info!("Products API: http://{}/products", addr);
+    tracing::info!("Orders API: http://{}/orders", addr);
 
     // axum::serve hands connections to Tokio tasks indefinitely
     // This future only resolves if the server encounters a fatal error

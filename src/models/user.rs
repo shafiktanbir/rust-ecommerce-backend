@@ -22,3 +22,46 @@ pub struct User {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct RegisterUserDto {
+    pub email: String,
+    pub password: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LoginUserDto {
+    pub email: String,
+    pub password: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AuthResponseDto {
+    pub token: String,
+    pub user: UserResponseDto,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UserResponseDto {
+    pub id: Uuid,
+    pub email: String,
+    pub created_at: DateTime<Utc>,
+}
+
+impl From<User> for UserResponseDto {
+    fn from(user: User) -> Self {
+        UserResponseDto {
+            id: user.id,
+            email: user.email,
+            created_at: user.created_at,
+        }
+    }
+}
+
+/// JWT Token Claims
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Claims {
+    pub sub: String, // User ID (uuid)
+    pub email: String,
+    pub exp: usize,  // Expiration timestamp
+}

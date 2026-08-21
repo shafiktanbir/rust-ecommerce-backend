@@ -29,5 +29,4 @@
 //   - auth_middleware: validate JWT on protected routes
 //   - rate_limit_middleware: token bucket per IP
 
-// V1: Middleware is configured in main.rs via tower-http layers.
-// This module is a placeholder for custom middleware functions we'll add in V2+.
+pub mod auth;

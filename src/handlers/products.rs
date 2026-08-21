@@ -53,7 +53,8 @@ pub async fn list_products(
     State(state): State<AppState>,
     Query(params): Query<ListProductsQuery>,
 ) -> AppResult<impl IntoResponse> {
-    let products = product_service::list_products(&state.db, params.limit, params.offset).await?;
+    let products =
+        product_service::list_products(&state.db, &state.redis, params.limit, params.offset).await?;
     Ok((StatusCode::OK, Json(products)))
 }
 
@@ -62,7 +63,7 @@ pub async fn get_product(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> AppResult<impl IntoResponse> {
-    let product = product_service::get_product(&state.db, id).await?;
+    let product = product_service::get_product(&state.db, &state.redis, id).await?;
     Ok((StatusCode::OK, Json(product)))
 }
 
@@ -72,6 +73,6 @@ pub async fn create_product(
     State(state): State<AppState>,
     Json(req): Json<CreateProductRequest>,
 ) -> AppResult<impl IntoResponse> {
-    let product = product_service::create_product(&state.db, req).await?;
+    let product = product_service::create_product(&state.db, &state.redis, req).await?;
     Ok((StatusCode::CREATED, Json(product)))
 }
