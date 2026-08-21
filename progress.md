@@ -71,19 +71,19 @@
 | **90th Percentile (p90)** | **26.80 ms** | **399.40 ms** | N/A | Degraded |
 
 > 🔍 **Identified Bottleneck**: At 500 VUs, requests are queuing for PostgreSQL connection pool slots (`max_connections = 10`), causing latency to jump from **67.89ms** to **574.92ms**.
-> 
+>
 > ### 🧮 Queueing Formula (Little's Law)
 > ```text
 > Connections Needed = Requests Per Second * Average Query Duration (in seconds)
 > ```
 > - **100 VUs**: `1,200 RPS * 0.0015s = 1.8 connections needed`. Since `1.8 < 10`, zero queuing occurs (`p95 = 67ms`).
 > - **500 VUs**: `1,800 RPS * 0.015s = 27 connections needed`. Since `27 > 10`, pool is 100% saturated and 490 requests wait in line (`p95 = 574ms`).
-> 
+>
 > ### ⚠️ Experiment: Increasing Pool Size to 50
 > - **Result**: Throughput dropped to **786 RPS** and `p95` latency worsened to **1.31s**.
 > - **Reason**: PostgreSQL uses 1 OS process per connection. 50 connections caused CPU process context-switching thrashing and disk I/O contention.
 > - **Formula**: `Optimal Pool Size = (CPU Cores * 2) + Disk Count` = `(4 * 2) + 1 = 9 to 10 connections`.
-> 
+>
 > *Saved raw metrics to [`load-tests/results/v1_baseline.json`](load-tests/results/v1_baseline.json) and [`load-tests/results/v1_stress_500vu.json`](load-tests/results/v1_stress_500vu.json).*
 
 ---
