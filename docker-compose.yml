@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: ecommerce_lab_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ecommerce}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ecommerce_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-ecommerce_lab}
+    ports:
+      # Maps host port 5432 → container port 5432
+      # This means your app connects to localhost:5432 during development
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Named volume — data persists between `docker compose down` / `docker compose up`
+      # Without this volume, all data is lost when the container stops
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # Docker will wait for this command to succeed before marking the container healthy
+      # Useful when other services depend_on postgres with condition: service_healthy
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ecommerce} -d ${POSTGRES_DB:-ecommerce_lab}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+# ─────────────────────────────────────────────────────────────────────────────
+# NOTES FOR LEARNING:
+#
+# V1: Only PostgreSQL. No Redis, no message broker.
+#
+# The docker-compose.yml will grow with each version:
+#   V2: + redis:alpine
+#   V3: + nginx (load balancer)
+#   V6: + kafka + zookeeper
+#   V7: Migrate to k8s manifests
+#
+# For now, keeping it minimal is intentional.
+# ─────────────────────────────────────────────────────────────────────────────

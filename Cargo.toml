@@ -1,0 +1,56 @@
+[package]
+name = "ecommerce_lab"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# HTTP framework — built on top of Hyper and Tower
+axum = { version = "0.7", features = ["macros"] }
+
+# Async runtime — manages the thread pool that drives all async tasks
+tokio = { version = "1", features = ["full"] }
+
+# Async PostgreSQL driver — compile-time verified SQL queries
+sqlx = { version = "0.8", features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "uuid",
+    "chrono",
+    "macros",
+] }
+
+# Serialization/deserialization — JSON request/response bodies
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Structured, levelled logging — critical for observability at scale
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# .env file loading for local development
+dotenvy = "0.15"
+
+# UUID generation for primary keys (v4 = random)
+uuid = { version = "1", features = ["serde", "v4"] }
+
+# Timestamps — maps to PostgreSQL TIMESTAMPTZ
+chrono = { version = "0.4", features = ["serde"] }
+
+# Ergonomic internal error handling (not exposed to API)
+anyhow = "1"
+
+# Typed, structured error definitions
+thiserror = "2"
+
+# Tower middleware: request tracing, CORS
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+
+# HTTP utilities
+http = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
