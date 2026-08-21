@@ -31,9 +31,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
-    errors::AppResult,
-    models::product::CreateProductRequest,
-    routes::AppState,
+    errors::AppResult, models::product::CreateProductRequest, routes::AppState,
     services::product_service,
 };
 

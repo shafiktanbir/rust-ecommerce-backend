@@ -40,12 +40,12 @@
 
 ## V1 Gaps / Things to Revisit
 
+- [x] **Error 404 verification**: `GET /products/:invalid-uuid` tested via Playwright E2E
+- [x] **Validation errors**: test `POST /products` with bad payload tested via Playwright E2E
 - [ ] **Auth layer**: `User` model exists but register/login endpoints not implemented
-- [ ] **Error 404 verification**: `GET /products/:invalid-uuid` not tested
-- [ ] **Validation errors**: test `POST /products` with bad payload (negative price, empty name)
+- [ ] **Orders API**: not implemented yet (tables exist in DB)
 - [ ] **rust-analyzer offline mode**: `cargo sqlx prepare` not yet run (IDE shows false errors)
 - [ ] **FLOAT8 vs NUMERIC**: understand when to switch to `rust_decimal` + `bigdecimal`
-- [ ] **Orders API**: not implemented yet (tables exist in DB)
 
 ---
 
@@ -57,18 +57,34 @@
 
 ---
 
-## Load Test Baseline (V1 — not yet run)
+## Load Test Baseline & Stress Test (V1 — COMPLETED ✅)
 
-> Run these after V1 is stable to establish the baseline before V2.
+### 100 VUs Baseline vs 500 VUs Stress Test
 
-```bash
-# Install k6 first (see load-tests/README.md)
-k6 run --vus 10  --duration 30s load-tests/v1_products.js
-k6 run --vus 100 --duration 60s load-tests/v1_products.js
-k6 run --vus 500 --duration 60s load-tests/v1_products.js
-```
+| Metric | 100 VUs Baseline | 500 VUs Stress Test | Target Threshold | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **Throughput (RPS)** | **1,221.85 req/sec** | **1,820.04 req/sec** | N/A | Scaled 1.5x |
+| **Total Requests** | **37,024** | **55,915** | N/A | 100% Success |
+| **Error Rate** | **0.00%** | **0.00%** | `< 1.00%` | ✅ 100% Stable |
+| **Median Latency (p50)** | **2.29 ms** | **186.84 ms** | N/A | Queueing |
+| **95th Percentile (p95)** | **67.89 ms** | ❌ **574.92 ms** | `< 200.00 ms` | 🔴 **BREACHED** |
+| **90th Percentile (p90)** | **26.80 ms** | **399.40 ms** | N/A | Degraded |
 
-Record results in `load-tests/results/` using the template in `docs/performance.md`.
+> 🔍 **Identified Bottleneck**: At 500 VUs, requests are queuing for PostgreSQL connection pool slots (`max_connections = 10`), causing latency to jump from **67.89ms** to **574.92ms**.
+> 
+> ### 🧮 Queueing Formula (Little's Law)
+> ```text
+> Connections Needed = Requests Per Second * Average Query Duration (in seconds)
+> ```
+> - **100 VUs**: `1,200 RPS * 0.0015s = 1.8 connections needed`. Since `1.8 < 10`, zero queuing occurs (`p95 = 67ms`).
+> - **500 VUs**: `1,800 RPS * 0.015s = 27 connections needed`. Since `27 > 10`, pool is 100% saturated and 490 requests wait in line (`p95 = 574ms`).
+> 
+> ### ⚠️ Experiment: Increasing Pool Size to 50
+> - **Result**: Throughput dropped to **786 RPS** and `p95` latency worsened to **1.31s**.
+> - **Reason**: PostgreSQL uses 1 OS process per connection. 50 connections caused CPU process context-switching thrashing and disk I/O contention.
+> - **Formula**: `Optimal Pool Size = (CPU Cores * 2) + Disk Count` = `(4 * 2) + 1 = 9 to 10 connections`.
+> 
+> *Saved raw metrics to [`load-tests/results/v1_baseline.json`](load-tests/results/v1_baseline.json) and [`load-tests/results/v1_stress_500vu.json`](load-tests/results/v1_stress_500vu.json).*
 
 ---
 

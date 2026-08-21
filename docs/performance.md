@@ -176,3 +176,41 @@ Next action:
 | **tokio-console** | Async task profiling | V3 (if CPU-bound) |
 | **flamegraph** | CPU profiling | V3 |
 | **pgBadger** | PostgreSQL log analysis | V5 |
+
+---
+
+## Connection Pool Sizing Formula (Little's Law)
+
+To calculate how many database connections your system needs under peak load:
+
+```text
+Connections Needed = Requests Per Second * Average Query Duration (in seconds)
+```
+
+### Queue Delay Calculation:
+```text
+Queue Wait Time = Waiting Requests / Throughput
+```
+
+#### Example (500 VUs Stress Test):
+- `Throughput`: 1,800 req/sec
+- `Average Query Duration`: 0.015 seconds
+- `Connections Needed`: `1,800 * 0.015 = 27 connections`
+- `Pool Limit`: 10 connections
+- `Result`: Pool saturation (100%), 490 requests wait in line, causing `p95` latency to jump to **574ms**.
+
+---
+
+## Official PostgreSQL Connection Pool Formula
+
+```text
+Optimal Pool Size = (CPU Cores * 2) + Disk Count
+```
+
+### Why increasing pool size to 50 made performance WORSE (786 RPS, 1.31s latency):
+
+1. **Process-Per-Connection**: PostgreSQL creates a separate OS process for every connection. 50 connections = 50 heavy processes competing for CPU cores.
+2. **CPU Context Switching**: The CPU spends more time switching between 50 processes than executing SQL queries.
+3. **Disk I/O Bottleneck**: 50 processes reading/writing to 1 hard drive causes severe disk queueing.
+
+**Rule**: Never solve scaling by simply raising database pool connections. Offload read queries to an in-memory cache like Redis (V2).

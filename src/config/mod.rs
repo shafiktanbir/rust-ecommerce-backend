@@ -23,8 +23,8 @@ impl AppConfig {
     /// Call this once at startup, before creating any connections.
     /// The result is cloned into AppState and shared across all request handlers.
     pub fn from_env() -> Self {
-        let database_url = std::env::var("DATABASE_URL")
-            .expect("DATABASE_URL must be set in environment");
+        let database_url =
+            std::env::var("DATABASE_URL").expect("DATABASE_URL must be set in environment");
 
         let app_port = std::env::var("APP_PORT")
             .unwrap_or_else(|_| "8080".to_string())
