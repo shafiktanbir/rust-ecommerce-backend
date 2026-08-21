@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE products\n        SET inventory_count = inventory_count - 1,\n            updated_at = NOW()\n        WHERE id = $1\n          AND inventory_count > 0\n        RETURNING id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "15cf9a911e9ef2873e57965c4f82a6f9bc76795cfb4a86c53f1a0456eb1e3997"
+}
