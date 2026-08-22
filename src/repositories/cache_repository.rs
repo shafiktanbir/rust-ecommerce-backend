@@ -48,7 +48,11 @@ pub async fn set_product(redis_pool: &Pool, product: &Product) -> AppResult<()> 
     let key = format!("product:{}", product.id);
     if let Ok(json_str) = serde_json::to_string(product) {
         let _: Result<(), _> = conn.set_ex(&key, json_str, PRODUCT_CACHE_TTL_SECS).await;
-        tracing::debug!("CACHE SET: product:{} (TTL={}s)", product.id, PRODUCT_CACHE_TTL_SECS);
+        tracing::debug!(
+            "CACHE SET: product:{} (TTL={}s)",
+            product.id,
+            PRODUCT_CACHE_TTL_SECS
+        );
     }
 
     Ok(())
