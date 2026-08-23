@@ -1,0 +1,189 @@
+---
+# ansible/deploy.yml
+# Production Ansible Playbook for Hetzner Cluster Deployment
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. Provision Database & Redis Container Node (10.0.1.20)
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Deploy PostgreSQL and Redis Node
+  hosts: db_node
+  become: yes
+  tasks:
+    - name: Wait for SSH port 22 to respond
+      wait_for_connection:
+        delay: 2
+        timeout: 60
+
+    - name: Install Docker and Docker Compose
+      apt:
+        name:
+          - docker.io
+          - docker-compose-v2
+        state: present
+        update_cache: yes
+
+    - name: Ensure Docker service is running
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Create database directory
+      file:
+        path: /opt/ecommerce-db
+        state: directory
+        mode: '0755'
+
+    - name: Deploy DB docker-compose.yml
+      copy:
+        dest: /opt/ecommerce-db/docker-compose.yml
+        content: |
+          services:
+            postgres:
+              image: postgres:15-alpine
+              container_name: ecommerce_lab_postgres
+              environment:
+                POSTGRES_USER: ecommerce
+                POSTGRES_PASSWORD: ecommerce_secret
+                POSTGRES_DB: ecommerce_lab
+              ports:
+                - "5432:5432"
+              restart: unless-stopped
+
+            redis:
+              image: redis:7-alpine
+              container_name: ecommerce_lab_redis
+              ports:
+                - "6379:6379"
+              restart: unless-stopped
+
+    - name: Start PostgreSQL and Redis containers
+      command: docker compose up -d
+      args:
+        chdir: /opt/ecommerce-db
+
+    - name: Wait for PostgreSQL container database initialization to complete
+      shell: docker exec ecommerce_lab_postgres pg_isready -U ecommerce -d ecommerce_lab
+      register: db_ready
+      until: db_ready.rc == 0
+      retries: 20
+      delay: 2
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. Deploy Axum API Workers (10.0.1.11, 10.0.1.12)
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Deploy Axum API Worker Instances
+  hosts: api_workers
+  serial: 1
+  become: yes
+  tasks:
+    - name: Tune Linux kernel for high throughput
+      sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: yes
+      loop:
+        - { key: 'net.core.somaxconn', value: '65535' }
+        - { key: 'net.ipv4.tcp_max_syn_backlog', value: '65535' }
+        - { key: 'fs.file-max', value: '2097152' }
+
+    - name: Create application directory
+      file:
+        path: /opt/ecommerce-lab
+        state: directory
+        mode: '0755'
+
+    - name: Copy release binary to worker server
+      copy:
+        src: ../../../target/release/ecommerce_lab
+        dest: /opt/ecommerce-lab/ecommerce_lab
+        mode: '0755'
+
+    - name: Copy database migrations directory
+      copy:
+        src: ../../../migrations
+        dest: /opt/ecommerce-lab/
+
+    - name: Deploy systemd service unit file
+      copy:
+        dest: /etc/systemd/system/ecommerce-api.service
+        content: |
+          [Unit]
+          Description=Ecommerce Axum API Worker ({{ worker_name }})
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=root
+          WorkingDirectory=/opt/ecommerce-lab
+          Environment="APP_PORT={{ app_port }}"
+          Environment="APP_ENV=production"
+          Environment="DATABASE_URL=postgres://ecommerce:ecommerce_secret@10.0.1.20:5432/ecommerce_lab"
+          Environment="REDIS_URL=redis://10.0.1.20:6379"
+          Environment="RUST_LOG=ecommerce_lab=info,tower_http=warn"
+          Environment="JWT_SECRET=supersecret_jwt_key_ecommerce_lab_2026"
+          ExecStart=/opt/ecommerce-lab/ecommerce_lab
+          Restart=always
+          RestartSec=2s
+          LimitNOFILE=65536
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd daemon & start API worker service
+      systemd:
+        name: ecommerce-api
+        daemon_reload: yes
+        state: restarted
+        enabled: yes
+
+    - name: Verify API worker health check endpoint
+      uri:
+        url: "http://127.0.0.1:{{ app_port }}/health"
+        status_code: 200
+      register: health_check
+      until: health_check.status == 200
+      retries: 15
+      delay: 2
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. Deploy Nginx Load Balancer (10.0.1.10)
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Deploy Nginx Load Balancer Node
+  hosts: nginx_lb
+  become: yes
+  tasks:
+    - name: Tune Linux kernel for Nginx LB
+      sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: yes
+      loop:
+        - { key: 'net.core.somaxconn', value: '65535' }
+        - { key: 'net.ipv4.tcp_max_syn_backlog', value: '65535' }
+        - { key: 'fs.file-max', value: '2097152' }
+
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present
+        update_cache: yes
+
+    - name: Deploy tuned nginx.conf
+      template:
+        src: nginx.conf.j2
+        dest: /etc/nginx/nginx.conf
+        mode: '0644'
+
+    - name: Restart Nginx service
+      systemd:
+        name: nginx
+        state: restarted
+        enabled: yes
+
+    - name: Verify Nginx load balancer health check proxy
+      uri:
+        url: "http://127.0.0.1:8080/health"
+        status_code: 200

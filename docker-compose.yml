@@ -7,19 +7,13 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ecommerce_secret}
       POSTGRES_DB: ${POSTGRES_DB:-ecommerce_lab}
     ports:
-      # Maps host port 5432 → container port 5432
-      # This means your app connects to localhost:5432 during development
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-5434}:5432"
     volumes:
-      # Named volume — data persists between `docker compose down` / `docker compose up`
-      # Without this volume, all data is lost when the container stops
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      # Docker will wait for this command to succeed before marking the container healthy
-      # Useful when other services depend_on postgres with condition: service_healthy
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ecommerce} -d ${POSTGRES_DB:-ecommerce_lab}"]
-      interval: 5s
-      timeout: 5s
+      interval: 3s
+      timeout: 3s
       retries: 10
     restart: unless-stopped
 
@@ -27,28 +21,92 @@ services:
     image: redis:7-alpine
     container_name: ecommerce_lab_redis
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_PORT:-6380}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
+      interval: 3s
+      timeout: 3s
       retries: 5
+    restart: unless-stopped
+
+  # ─── Milestone V3: Axum API Workers ──────────────────────────────────────────
+  api1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ecommerce_lab_api1
+    ports:
+      - "8081:8081"
+    environment:
+      APP_PORT: "8081"
+      APP_ENV: "development"
+      DATABASE_URL: "postgres://${POSTGRES_USER:-ecommerce}:${POSTGRES_PASSWORD:-ecommerce_secret}@postgres:5432/${POSTGRES_DB:-ecommerce_lab}"
+      REDIS_URL: "redis://redis:6379"
+      RUST_LOG: "ecommerce_lab=info,tower_http=warn"
+      JWT_SECRET: "supersecret_jwt_key_ecommerce_lab_2026"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ecommerce_lab_api2
+    ports:
+      - "8082:8082"
+    environment:
+      APP_PORT: "8082"
+      APP_ENV: "development"
+      DATABASE_URL: "postgres://${POSTGRES_USER:-ecommerce}:${POSTGRES_PASSWORD:-ecommerce_secret}@postgres:5432/${POSTGRES_DB:-ecommerce_lab}"
+      REDIS_URL: "redis://redis:6379"
+      RUST_LOG: "ecommerce_lab=info,tower_http=warn"
+      JWT_SECRET: "supersecret_jwt_key_ecommerce_lab_2026"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ecommerce_lab_api3
+    ports:
+      - "8083:8083"
+    environment:
+      APP_PORT: "8083"
+      APP_ENV: "development"
+      DATABASE_URL: "postgres://${POSTGRES_USER:-ecommerce}:${POSTGRES_PASSWORD:-ecommerce_secret}@postgres:5432/${POSTGRES_DB:-ecommerce_lab}"
+      REDIS_URL: "redis://redis:6379"
+      RUST_LOG: "ecommerce_lab=info,tower_http=warn"
+      JWT_SECRET: "supersecret_jwt_key_ecommerce_lab_2026"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ─── Milestone V3: Nginx Load Balancer ─────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: ecommerce_lab_nginx
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api1
+      - api2
+      - api3
     restart: unless-stopped
 
 volumes:
   postgres_data:
     driver: local
-
-# ─────────────────────────────────────────────────────────────────────────────
-# NOTES FOR LEARNING:
-#
-# V1: Only PostgreSQL. No Redis, no message broker.
-#
-# The docker-compose.yml will grow with each version:
-#   V2: + redis:alpine
-#   V3: + nginx (load balancer)
-#   V6: + kafka + zookeeper
-#   V7: Migrate to k8s manifests
-#
-# For now, keeping it minimal is intentional.
-# ─────────────────────────────────────────────────────────────────────────────

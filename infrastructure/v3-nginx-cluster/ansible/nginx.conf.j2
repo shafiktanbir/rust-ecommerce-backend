@@ -1,0 +1,41 @@
+# ansible/nginx.conf.j2
+# Milestone V3 — Production Nginx Load Balancer for Hetzner Cluster
+
+worker_processes auto;
+worker_rlimit_nofile 65536;
+
+events {
+    worker_connections 10240;
+    use epoll;
+    multi_accept on;
+}
+
+http {
+    access_log off;
+    error_log /var/log/nginx/error.log warn;
+
+    upstream ecommerce_cluster {
+        least_conn;
+
+        server 10.0.1.11:8081 max_fails=0;
+        server 10.0.1.12:8082 max_fails=0;
+
+        keepalive 512;
+    }
+
+    server {
+        listen 8080 reuseport;
+        server_name _;
+
+        location / {
+            proxy_pass http://ecommerce_cluster;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+            proxy_buffering off;
+        }
+    }
+}

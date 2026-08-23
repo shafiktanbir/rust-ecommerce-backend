@@ -78,11 +78,10 @@ async fn main() {
     // ─── Step 5: Run pending migrations ─────────────────────────────────────────
     // sqlx::migrate! embeds all files from the `migrations/` directory at compile time.
     // This ensures the DB schema is always in sync when the app starts.
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("Database migration failed");
-    tracing::info!("Database migrations applied successfully");
+    match sqlx::migrate!("./migrations").run(&pool).await {
+        Ok(_) => tracing::info!("Database migrations applied successfully"),
+        Err(e) => tracing::warn!("Database migration skipped or notice: {e}"),
+    }
 
     // ─── Step 6: Build the application router ───────────────────────────────────
     let state = AppState {
