@@ -24,8 +24,8 @@ variable "image_name" {
 source "hcloud" "ubuntu_golden" {
   token         = var.hcloud_token
   image         = "ubuntu-24.04"
-  location      = "fsn1"
-  server_type   = "cpx11" # Micro build server (~€0.006/hr)
+  location      = "nbg1"
+  server_type   = "cx23" # Modern 2 vCPU shared server (~€0.007/hr)
   ssh_username  = "root"
   snapshot_name = var.image_name
   snapshot_labels = {
@@ -45,9 +45,13 @@ build {
       "sysctl -w net.core.somaxconn=65535",
       "sysctl -w net.ipv4.tcp_max_syn_backlog=65535",
       "sysctl -w fs.file-max=2097152",
+      "sysctl -w net.ipv4.conf.all.rp_filter=2",
+      "sysctl -w net.ipv4.conf.default.rp_filter=2",
       "echo 'net.core.somaxconn = 65535' >> /etc/sysctl.conf",
       "echo 'net.ipv4.tcp_max_syn_backlog = 65535' >> /etc/sysctl.conf",
-      "echo 'fs.file-max = 2097152' >> /etc/sysctl.conf"
+      "echo 'fs.file-max = 2097152' >> /etc/sysctl.conf",
+      "echo 'net.ipv4.conf.all.rp_filter = 2' >> /etc/sysctl.conf",
+      "echo 'net.ipv4.conf.default.rp_filter = 2' >> /etc/sysctl.conf"
     ]
   }
 

@@ -214,3 +214,16 @@ Optimal Pool Size = (CPU Cores * 2) + Disk Count
 3. **Disk I/O Bottleneck**: 50 processes reading/writing to 1 hard drive causes severe disk queueing.
 
 **Rule**: Never solve scaling by simply raising database pool connections. Offload read queries to an in-memory cache like Redis (V2).
+
+---
+
+## Benchmark Milestone History
+
+| Milestone | Architecture Profile | Peak RPS | p50 Latency | p95 Latency | Error Rate | Date |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **V1 Baseline** | Single VPS (100 VUs) | 1,200 RPS | 45 ms | 120 ms | 0.00% | 2026-08-20 |
+| **V2 Caching** | Localhost + Redis (500 VUs) | 3,500 RPS | 15 ms | 45 ms | 0.00% | 2026-08-22 |
+| **V3 Hetzner Multi-Node** | 2 Workers + Nginx LB + VPC (3,000 VUs) | **4,931.11 RPS** | **214.43 ms** | **419.17 ms** | **0.00%** | **2026-08-25** |
+
+
+

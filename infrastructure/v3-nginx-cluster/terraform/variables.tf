@@ -10,13 +10,13 @@ variable "hcloud_token" {
 variable "location" {
   type        = string
   description = "Hetzner Datacenter location (fsn1 = Falkenstein Germany, nbg1 = Nuremberg, ash = Ashburn USA)"
-  default     = "fsn1"
+  default     = "nbg1"
 }
 
 variable "server_type" {
   type        = string
-  description = "Hetzner Cloud Server Type (cpx12 = 2 vCPU AMD EPYC, 2GB RAM)"
-  default     = "cpx12"
+  description = "Hetzner Cloud Server Type (cx23 = 2 vCPU shared AMD/Intel, 4GB RAM)"
+  default     = "cx23"
 }
 
 variable "ssh_public_key_path" {

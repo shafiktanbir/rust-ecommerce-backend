@@ -105,6 +105,13 @@
         src: ../../../migrations
         dest: /opt/ecommerce-lab/
 
+    - name: Stop default nginx service on API worker nodes
+      systemd:
+        name: nginx
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+
     - name: Deploy systemd service unit file
       copy:
         dest: /etc/systemd/system/ecommerce-api.service
@@ -144,7 +151,7 @@
         status_code: 200
       register: health_check
       until: health_check.status == 200
-      retries: 15
+      retries: 30
       delay: 2
 
 # ─────────────────────────────────────────────────────────────────────────────

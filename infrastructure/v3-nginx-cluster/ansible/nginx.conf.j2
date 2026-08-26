@@ -17,8 +17,8 @@ http {
     upstream ecommerce_cluster {
         least_conn;
 
-        server 10.0.1.11:8081 max_fails=0;
-        server 10.0.1.12:8082 max_fails=0;
+        server 10.0.1.11:8080 max_fails=0;
+        server 10.0.1.12:8080 max_fails=0;
 
         keepalive 512;
     }

@@ -8,6 +8,9 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TF_DIR="$PROJECT_DIR/infrastructure/v3-nginx-cluster/terraform"
 ANSIBLE_DIR="$PROJECT_DIR/infrastructure/v3-nginx-cluster/ansible"
 
+# Default to pure Golden Image boot (zero Ansible overhead)
+SKIP_ANSIBLE="${SKIP_ANSIBLE:-true}"
+
 # Automatically source HCLOUD_TOKEN from .env if present
 if [ -z "$HCLOUD_TOKEN" ]; then
     if [ -f "$PROJECT_DIR/.env" ]; then

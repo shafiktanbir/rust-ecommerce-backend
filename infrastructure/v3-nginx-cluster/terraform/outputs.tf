@@ -5,19 +5,19 @@ output "nginx_lb_public_ip" {
   value       = hcloud_server.nginx_lb.ipv4_address
 }
 
-output "api_1_public_ip" {
-  description = "Public IP address of API Worker 1"
-  value       = hcloud_server.api1.ipv4_address
+output "api_1_private_ip" {
+  description = "Private IP address of API Worker 1"
+  value       = "10.0.1.11"
 }
 
-output "api_2_public_ip" {
-  description = "Public IP address of API Worker 2"
-  value       = hcloud_server.api2.ipv4_address
+output "api_2_private_ip" {
+  description = "Private IP address of API Worker 2"
+  value       = "10.0.1.12"
 }
 
-output "db_public_ip" {
-  description = "Public IP address of Postgres + Redis Database Node"
-  value       = hcloud_server.db_node.ipv4_address
+output "db_private_ip" {
+  description = "Private IP address of Postgres + Redis Database Node"
+  value       = "10.0.1.20"
 }
 
 # ─── Auto-Generate Ansible Inventory File ────────────────────────────────────
@@ -28,11 +28,11 @@ resource "local_file" "ansible_inventory" {
 ${hcloud_server.nginx_lb.ipv4_address} ansible_user=root private_ip=10.0.1.10
 
 [api_workers]
-${hcloud_server.api1.ipv4_address} ansible_user=root private_ip=10.0.1.11 app_port=8081 worker_name=api1
-${hcloud_server.api2.ipv4_address} ansible_user=root private_ip=10.0.1.12 app_port=8082 worker_name=api2
+10.0.1.11 app_port=8080 worker_name=api1
+10.0.1.12 app_port=8080 worker_name=api2
 
 [db_node]
-${hcloud_server.db_node.ipv4_address} ansible_user=root private_ip=10.0.1.20
+10.0.1.20
 
 [all:vars]
 ansible_ssh_private_key_file=${var.ssh_private_key_path}
