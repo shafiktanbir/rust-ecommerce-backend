@@ -41,4 +41,6 @@ docs/
 
 ### 5. ⚡ Performance Engineering & Benchmark Results
 * 📊 [**Performance Engineering Reference**](performance.md): Latency metrics, throughput (RPS), error rates, database connection pool tuning, and Little's Law.
+* 🧮 [**Study Notes: Converting RPS to Real User Scale**](study-notes-rps-to-user-scale.md): Mathematical conversion formulas (RPS → Concurrent Users → DAU → MAU), worked calculations, investor pitch response script, and practice problems.
 * 📈 [**Milestone V3 Live Cloud Benchmark Results**](v3_hetzner_benchmark_results.md): Raw k6 performance metrics for 3,000 VUs sustaining **4,931.11 RPS** with **100.00% success rate** on Hetzner Cloud.
+
