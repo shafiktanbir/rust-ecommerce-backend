@@ -108,22 +108,26 @@ curl http://localhost:8080/products/YOUR-UUID-HERE
 src/
 ├── main.rs             # Startup: config → pool → router → listen
 ├── config/             # Environment variable loading
-├── db/                 # PostgreSQL connection pool setup
+├── db/                 # PostgreSQL & Redis connection pool setup
 ├── errors/             # Centralized error types → HTTP responses
-├── models/             # Pure data structs (Product, User)
-├── repositories/       # All SQL queries live here
+├── models/             # Pure data structs (Product, User, Order)
+├── repositories/       # All SQL queries & Redis cache repositories
 ├── services/           # Business logic layer
 ├── handlers/           # HTTP request/response boundary
 ├── routes/             # Router assembly + AppState
-└── middleware/         # Request tracing, future auth
+└── middleware/         # Auth JWT extractor & request tracing
 
 migrations/             # SQL schema migrations (run automatically)
-docker-compose.yml      # PostgreSQL local setup
+docker-compose.yml      # PostgreSQL & Redis local setup
 docs/
-├── architecture/v1.md  # V1 architecture explanation
-├── performance.md      # Metrics reference and measurement guide
-└── decisions/          # Architecture Decision Records (ADRs)
-load-tests/             # k6 load test scripts (added in V2)
+├── architecture/       # V1 architecture explanation & concurrency specs
+├── decisions/          # Architecture Decision Records (ADRs)
+├── mistakes/           # SRE incident postmortems & mistake logs
+├── scenarios/          # 4-Layer SRE diagnostic funnel & incident handbooks
+└── performance.md      # Metrics reference, Little's Law & measurement guide
+infrastructure/         # Terraform, Ansible & Packer cluster scripts
+load-tests/             # k6 load test scripts
+scripts/                # Automated Hetzner Cloud benchmark execution scripts
 ```
 
 ---
@@ -135,11 +139,11 @@ HTTP Request
      ↓
 Handler       — extract params, call service, return HTTP response
      ↓
-Service       — business rules, validation, orchestration
+Service       — business rules, validation, cache-aside logic
      ↓
-Repository    — SQL queries only
+Repository    — SQL queries & Redis cache commands only
      ↓
-PostgreSQL
+PostgreSQL / Redis
 ```
 
 Each layer has a single responsibility. This makes the system easier to:
@@ -151,23 +155,27 @@ Each layer has a single responsibility. This makes the system easier to:
 
 ## Version Roadmap
 
-| Version | Component Added | Trigger |
-|---------|----------------|---------|
-| V1 | Rust API + PostgreSQL | Baseline |
-| V2 | Redis cache | Cache-miss rate too high |
-| V3 | Load balancer + multiple instances | Single instance CPU saturated |
-| V4 | Background job queue | Synchronous operations too slow |
-| V5 | DB indexes + read replicas | DB CPU bottleneck |
-| V6 | Kafka event streaming | Need durable async processing |
-| V7 | Docker + Kubernetes | Need horizontal scaling |
-| V8 | Autoscaling + observability | Need production readiness |
-| V9 | Failure testing | Need resilience |
-| V10 | 10k user load test | Final validation |
+| Version | Component Added | Trigger | Status |
+|---------|----------------|---------|--------|
+| V1 | Rust API + PostgreSQL | Baseline | ✅ COMPLETE |
+| V2 | Redis cache-aside layer | Cache-miss rate & read throughput | ✅ COMPLETE |
+| V3 | Load balancer + 3x API instances (Hetzner Cloud VPC) | Single instance CPU saturated (4,931 RPS achieved) | ✅ COMPLETE |
+| V4 | Background job queue | Synchronous operations too slow | ⬜ Planned |
+| V5 | DB indexes + read replicas | DB CPU bottleneck | ⬜ Planned |
+| V6 | Kafka event streaming | Need durable async processing | ⬜ Planned |
+| V7 | Docker + Kubernetes | Need horizontal scaling | ⬜ Planned |
+| V8 | Autoscaling + observability | Need production readiness | ⬜ Planned |
+| V9 | Failure testing | Need resilience | ⬜ Planned |
+| V10 | 10k user load test | Final validation | ⬜ Planned |
 
 ---
 
-## Documentation
+## Documentation Index
 
-- [V1 Architecture](docs/architecture/v1.md)
-- [Performance Metrics Guide](docs/performance.md)
-- [ADR-001: Why PostgreSQL Monolith](docs/decisions/001-postgresql.md)
+- 📚 [**Master Documentation Index**](docs/README.md)
+- 📐 [**V1 Monolith Architecture**](docs/architecture/v1.md)
+- 📊 [**Performance Metrics Guide**](docs/performance.md)
+- 📘 [**Hetzner V3 Benchmark Mistakes & SRE Solutions**](docs/mistakes/hetzner_v3_benchmark_mistakes.md)
+- 📖 [**502/504 Ingress Outage & 4-Layer Diagnostic Scenario**](docs/scenarios/sre_502_504_diagnostic_scenario.md)
+- 📜 [**ADR-001: Why PostgreSQL Monolith**](docs/decisions/001-postgresql.md)
+
