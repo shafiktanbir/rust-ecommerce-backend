@@ -37,3 +37,21 @@ Whenever running Hetzner Cloud infrastructure benchmarks in this workspace:
 
 4. **HTTP Health Check Polling**:
    - Poll `http://$NGINX_IP:8080/health` directly with backoff retries rather than relying solely on SSH port loops.
+
+---
+
+## realistic-k6-user-benchmark-rules
+
+Whenever designing, executing, or analyzing load test benchmarks in this repository:
+
+1. **Mandatory Production Workload Simulation**:
+   - All AI agents MUST construct k6 load tests that simulate realistic user activity mixes rather than 100% synthetic read loops.
+   - **Standard Production Ratio**:
+     - **70% Catalog Reads** (`GET /products?limit=20`) -> Cached reads
+     - **15% Uncached Product Detail Lookups** (`GET /products/:id`) -> Cache miss / DB read
+     - **15% Authenticated Order Checkouts** (`POST /orders`) -> Cryptographic JWT validation + PostgreSQL row lock & write transaction
+2. **User Think Time Requirement**:
+   - Enforce realistic user think time between actions (`sleep(1.0 + Math.random() * 1.5)` pause) to reflect real human browsing behavior instead of zero-delay bot spamming.
+3. **Transparent Reporting**:
+   - Whenever evaluating RPS, agents MUST explicitly distinguish between **Pure Read Synthetic Throughput** (e.g. 4,600+ RPS) and **Realistic Mixed Workload Throughput** (e.g. 1,500 - 2,200 RPS).
+

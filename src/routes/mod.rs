@@ -29,7 +29,7 @@ use sqlx::PgPool;
 
 use crate::{
     config::AppConfig,
-    handlers::{auth, health, orders, products},
+    handlers::{auth, health, orders, products, queue_stats},
 };
 
 /// Shared application state — injected into every handler via State<AppState>
@@ -56,6 +56,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/orders", post(orders::create_order))
         .route("/orders", get(orders::list_orders))
         .route("/orders/:id", get(orders::get_order))
+        // Queue Stats
+        .route("/queue/stats", get(queue_stats::get_stats))
         // Attach shared state
         .with_state(state)
 }

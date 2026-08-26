@@ -41,14 +41,14 @@ echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.i
 sudo apt-get update && sudo apt-get install k6
 ```
 
-## Running a Test (once scripts are added)
+## Running Load Tests
 
 ```bash
-# Run with 100 virtual users for 60 seconds
-k6 run --vus 100 --duration 60s load-tests/v1_products.js
+# V3 Pure Read Benchmark (3,000 VUs)
+TARGET_URL="http://<LB_IP>:8080" k6 run load-tests/v3_stress_3000vu.js
 
-# Save results to file for comparison
-k6 run --vus 100 --duration 60s --out json=load-tests/results/run-001.json load-tests/v1_products.js
+# V4 Realistic Mixed Workload Benchmark (70% Read / 15% Detail / 15% Authenticated Order Writes)
+TARGET_URL="http://<LB_IP>:8080" k6 run load-tests/v4_realistic_mixed_workload.js
 ```
 
 ## Recording Results
@@ -57,3 +57,4 @@ After every load test, record results in `load-tests/results/` following the tem
 [docs/performance.md](../docs/performance.md).
 
 Never discard old results — before/after comparisons are the proof that architectural changes work.
+

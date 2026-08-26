@@ -30,6 +30,7 @@ mod config;
 mod db;
 mod errors;
 mod handlers;
+mod jobs;
 mod middleware;
 mod models;
 mod repositories;
@@ -73,7 +74,12 @@ async fn main() {
     tracing::info!("Database connection pool established (max_connections=10)");
 
     let redis_pool = db::create_redis_pool(&config);
-    tracing::info!("Redis connection pool established for V2 caching");
+    tracing::info!("Redis connection pool established for V2 caching & V4 job queue");
+
+    // ─── Step 4b: Milestone V4 Background Worker Initialization ──────────────────
+    // Spawn 5 background worker Tokio tasks to process Redis queue jobs asynchronously
+    jobs::worker::start_worker_pool(redis_pool.clone(), 5);
+    tracing::info!("Milestone V4: Background job queue workers initialized (5 workers per instance)");
 
     // ─── Step 5: Run pending migrations ─────────────────────────────────────────
     // sqlx::migrate! embeds all files from the `migrations/` directory at compile time.
