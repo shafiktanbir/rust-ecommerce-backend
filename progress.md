@@ -163,6 +163,25 @@ Write `load-tests/v1_products.js` (k6 script), run baseline load test at 10/100/
 
 ---
 
+### Session 5 — 2026-08-28 (V4 Empirical Bottleneck Isolation, EXPLAIN ANALYZE & Database Sizing Math)
+
+**Goal:** Empirically evaluate V4 cluster load testing, diagnose PostgreSQL row locking & pool queueing bottlenecks, analyze query planner cost models (`EXPLAIN ANALYZE`), and document database scaling capacity formulas.
+
+**Completed:**
+- **V4 Cluster Load Benchmarking**:
+  - Ran `v4_order_choke_test.js` (500 VUs): Processed **43,866 total requests** at **721.26 RPS**, 100.00% success rate, 258ms p50 latency, and 636ms p95 latency (SLA PASS ✅).
+  - Ran `v4_realistic_mixed_workload.js` (2,000 VUs): Sustained **59,163 total requests** at **551.46 RPS**, achieving **1.00ms p50 catalog read latency** and **4.18ms p95 overall latency**.
+- **PostgreSQL Bottleneck Diagnosis**:
+  - Isolated write tail latency spike (1.96s max) to PostgreSQL `PgPool` 10-connection queueing and `UPDATE products SET inventory_count = inventory_count - 1` `ExclusiveLock` row lock contention.
+  - Tested live PostgreSQL diagnostics using `docker exec ecommerce_lab_db psql`, `pg_stat_activity`, and `EXPLAIN ANALYZE`.
+- **Query Planner Mechanics & Cost-Based Optimizer (CBO)**:
+  - Analyzed why PostgreSQL chooses `Seq Scan` vs. `Index Scan` / `Bitmap Index Scan`.
+  - Discovered selectivity threshold rule (~15-20% table selectivity) and random disk seek I/O cost math (`seq_page_cost=1.0` vs `random_page_cost=4.0`).
+- **Database Scaling Documentation**:
+  - Created [`docs/study-notes-database-scaling-formulas.md`](docs/study-notes-database-scaling-formulas.md) covering market scaling tiers (Tier 1–5), Little's Law ($L = \lambda \cdot W$), PostgreSQL connection pool formula ($\text{Pool Size} = (\text{Cores} \times 2) + \text{Spindle}$), VU-to-RPS math, and updated [`docs/README.md`](docs/README.md).
+
+---
+
 ## Resume & Interview Case Study Plan
 
 > *Plan for polishing this project as a high-impact portfolio case study after scaling milestones are complete.*
