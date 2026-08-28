@@ -23,7 +23,7 @@ pub async fn create_order(
     let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::Unauthorized("Invalid user ID in token".into()))?;
 
-    let order = order_service::create_order(&state.db, &state.redis, user_id, payload).await?;
+    let order = order_service::create_order(&state.db.writer, &state.redis, user_id, payload).await?;
     Ok((StatusCode::CREATED, Json(order)))
 }
 
@@ -34,7 +34,7 @@ pub async fn list_orders(
     let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::Unauthorized("Invalid user ID in token".into()))?;
 
-    let orders = order_service::list_user_orders(&state.db, user_id).await?;
+    let orders = order_service::list_user_orders(state.get_reader_pool(), user_id).await?;
     Ok(Json(orders))
 }
 
@@ -46,6 +46,6 @@ pub async fn get_order(
     let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::Unauthorized("Invalid user ID in token".into()))?;
 
-    let order = order_service::get_order(&state.db, order_id, user_id).await?;
+    let order = order_service::get_order(state.get_reader_pool(), order_id, user_id).await?;
     Ok(Json(order))
 }

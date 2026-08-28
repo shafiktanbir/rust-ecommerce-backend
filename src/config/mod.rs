@@ -13,6 +13,7 @@
 #[derive(Debug, Clone)]
 pub struct AppConfig {
     pub database_url: String,
+    pub read_database_url: String,
     pub redis_url: String,
     pub jwt_secret: String,
     pub app_port: u16,
@@ -27,6 +28,9 @@ impl AppConfig {
     pub fn from_env() -> Self {
         let database_url =
             std::env::var("DATABASE_URL").expect("DATABASE_URL must be set in environment");
+
+        let read_database_url = std::env::var("READ_DATABASE_URL")
+            .unwrap_or_else(|_| database_url.clone());
 
         let redis_url = std::env::var("REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
@@ -43,6 +47,7 @@ impl AppConfig {
 
         AppConfig {
             database_url,
+            read_database_url,
             redis_url,
             jwt_secret,
             app_port,

@@ -1,6 +1,6 @@
 # Rust E-Commerce Scaling Lab — Progress
 
-## Current Version: **V4 — Asynchronous Background Job Queue (COMPLETE ✅)**
+## Current Version: **V5 — Database Scaling, Read Replicas & CQRS Read-Write Splitting (COMPLETE ✅)**
 
 ---
 
@@ -12,7 +12,7 @@
 | **V2** | ✅ **DONE** | Redis Cache-Aside layer + Auth API (JWT/bcrypt) + Orders API (atomic transaction) |
 | **V3** | ✅ **DONE** | Docker Compose multi-instance cluster + Nginx Load Balancer (3x Axum workers) |
 | **V4** | ✅ **DONE** | Redis-backed asynchronous background job queue & Tokio worker pool |
-| **V5** | ⬜ Not started | DB indexes + read replicas |
+| **V5** | ✅ **DONE** | PostgreSQL Primary/Replica streaming replication, CQRS dual pools, lag circuit breaker, composite indexes |
 | **V6** | ⬜ Not started | Kafka event-driven processing |
 | **V7** | ⬜ Not started | Docker + Kubernetes |
 | **V8** | ⬜ Not started | Autoscaling + observability (Prometheus/Grafana) |
@@ -179,6 +179,28 @@ Write `load-tests/v1_products.js` (k6 script), run baseline load test at 10/100/
   - Discovered selectivity threshold rule (~15-20% table selectivity) and random disk seek I/O cost math (`seq_page_cost=1.0` vs `random_page_cost=4.0`).
 - **Database Scaling Documentation**:
   - Created [`docs/study-notes-database-scaling-formulas.md`](docs/study-notes-database-scaling-formulas.md) covering market scaling tiers (Tier 1–5), Little's Law ($L = \lambda \cdot W$), PostgreSQL connection pool formula ($\text{Pool Size} = (\text{Cores} \times 2) + \text{Spindle}$), VU-to-RPS math, and updated [`docs/README.md`](docs/README.md).
+
+---
+
+### Session 6 — 2026-08-28 (V5 Database Scaling, Read Replicas, CQRS & Replication Lag Circuit Breaker)
+
+**Goal:** Implement PostgreSQL Primary/Replica Physical Streaming Replication, Rust CQRS dual database pools (`writer_pool` & `reader_pool`), automated Replication Lag Circuit Breaker (`AtomicBool`), and composite B-tree database indexing.
+
+**Completed:**
+- **Docker Compose Streaming Replication Cluster**:
+  - Configured `postgres` Primary container with `wal_level=replica`, `max_wal_senders=10`, `max_replication_slots=10`, and `init-primary-replication.sh` script to grant replication user permissions.
+  - Added `postgres_replica` Standby container bootstrapped via `pg_basebackup` streaming replication (host port `5435`).
+  - Verified live streaming replication via `SELECT client_addr, state, sync_state FROM pg_stat_replication;` showing active `walreceiver` streaming.
+- **Rust CQRS Read-Write Splitting**:
+  - Refactored `AppConfig` and `src/db/mod.rs` to initialize dual pools: `DbPools { writer: PgPool, reader: PgPool }`.
+  - Updated handlers (`products.rs`, `orders.rs`, `auth.rs`) to route 100% of read queries (`GET /products`, `GET /orders`, `POST /auth/login`) to `reader_pool` and mutations/transactions to `writer_pool`.
+- **Replication Lag Circuit Breaker**:
+  - Added `check_replication_lag` helper querying `pg_stat_replication` LSN delta in milliseconds.
+  - Spawned background Tokio task checking lag every 1 second and updating `is_replica_lagging` `AtomicBool` flag.
+  - Added `GET /health/db` endpoint reporting pool connections, idle counts, replication lag, and circuit breaker status.
+- **Composite Indexing & Query Planner Execution**:
+  - Added migration `002_v5_indexes.sql` creating composite index `idx_products_name_price ON products(name, price)`.
+  - Verified via `EXPLAIN ANALYZE` achieving **0.046 ms** execution time with `Index Scan`.
 
 ---
 

@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: ecommerce_lab_db
+    command: ["postgres", "-c", "wal_level=replica", "-c", "max_wal_senders=10", "-c", "max_replication_slots=10", "-c", "hot_standby=on"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-ecommerce}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ecommerce_secret}
@@ -10,11 +11,35 @@ services:
       - "${POSTGRES_PORT:-5434}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-primary-replication.sh:/docker-entrypoint-initdb.d/init-primary-replication.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ecommerce} -d ${POSTGRES_DB:-ecommerce_lab}"]
       interval: 3s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
+
+  postgres_replica:
+    image: postgres:15-alpine
+    container_name: ecommerce_lab_db_replica
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ecommerce}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ecommerce_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-ecommerce_lab}
+    ports:
+      - "${POSTGRES_REPLICA_PORT:-5435}:5432"
+    volumes:
+      - postgres_replica_data:/var/lib/postgresql/data
+      - ./scripts/start-replica.sh:/start-replica.sh:ro
+    entrypoint: ["/start-replica.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ecommerce} -d ${POSTGRES_DB:-ecommerce_lab}"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   redis:
@@ -41,11 +66,14 @@ services:
       APP_PORT: "8081"
       APP_ENV: "development"
       DATABASE_URL: "postgres://${POSTGRES_USER:-ecommerce}:${POSTGRES_PASSWORD:-ecommerce_secret}@postgres:5432/${POSTGRES_DB:-ecommerce_lab}"
+      READ_DATABASE_URL: "postgres://${POSTGRES_USER:-ecommerce}:${POSTGRES_PASSWORD:-ecommerce_secret}@postgres_replica:5432/${POSTGRES_DB:-ecommerce_lab}"
       REDIS_URL: "redis://redis:6379"
       RUST_LOG: "ecommerce_lab=info,tower_http=warn"
       JWT_SECRET: "supersecret_jwt_key_ecommerce_lab_2026"
     depends_on:
       postgres:
+        condition: service_healthy
+      postgres_replica:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -62,11 +90,14 @@ services:
       APP_PORT: "8082"
       APP_ENV: "development"
       DATABASE_URL: "postgres://${POSTGRES_USER:-ecommerce}:${POSTGRES_PASSWORD:-ecommerce_secret}@postgres:5432/${POSTGRES_DB:-ecommerce_lab}"
+      READ_DATABASE_URL: "postgres://${POSTGRES_USER:-ecommerce}:${POSTGRES_PASSWORD:-ecommerce_secret}@postgres_replica:5432/${POSTGRES_DB:-ecommerce_lab}"
       REDIS_URL: "redis://redis:6379"
       RUST_LOG: "ecommerce_lab=info,tower_http=warn"
       JWT_SECRET: "supersecret_jwt_key_ecommerce_lab_2026"
     depends_on:
       postgres:
+        condition: service_healthy
+      postgres_replica:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -83,11 +114,14 @@ services:
       APP_PORT: "8083"
       APP_ENV: "development"
       DATABASE_URL: "postgres://${POSTGRES_USER:-ecommerce}:${POSTGRES_PASSWORD:-ecommerce_secret}@postgres:5432/${POSTGRES_DB:-ecommerce_lab}"
+      READ_DATABASE_URL: "postgres://${POSTGRES_USER:-ecommerce}:${POSTGRES_PASSWORD:-ecommerce_secret}@postgres_replica:5432/${POSTGRES_DB:-ecommerce_lab}"
       REDIS_URL: "redis://redis:6379"
       RUST_LOG: "ecommerce_lab=info,tower_http=warn"
       JWT_SECRET: "supersecret_jwt_key_ecommerce_lab_2026"
     depends_on:
       postgres:
+        condition: service_healthy
+      postgres_replica:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -109,4 +143,6 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  postgres_replica_data:
     driver: local

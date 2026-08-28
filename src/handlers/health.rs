@@ -19,8 +19,10 @@
 //   and whose return type implements IntoResponse.
 //   This zero-cost abstraction happens entirely at compile time.
 
-use axum::{http::StatusCode, response::IntoResponse, Json};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde_json::json;
+
+use crate::{db::check_replication_lag, routes::AppState};
 
 /// GET /health
 ///
@@ -30,8 +32,30 @@ pub async fn health_check() -> impl IntoResponse {
         StatusCode::OK,
         Json(json!({
             "status": "ok",
-            "version": "v1",
+            "version": "v5",
             "service": "ecommerce-lab"
         })),
     )
 }
+
+/// GET /health/db
+///
+/// Returns: 200 OK with database connection pool metrics, replication lag in ms, and circuit breaker status
+pub async fn db_health_check(State(state): State<AppState>) -> impl IntoResponse {
+    let lag_ms = check_replication_lag(&state.db.writer).await;
+    let is_lagging = state.is_replica_lagging.load(std::sync::atomic::Ordering::Relaxed);
+
+    (
+        StatusCode::OK,
+        Json(json!({
+            "status": "ok",
+            "writer_pool_connections": state.db.writer.size(),
+            "writer_pool_idle": state.db.writer.num_idle(),
+            "reader_pool_connections": state.db.reader.size(),
+            "reader_pool_idle": state.db.reader.num_idle(),
+            "replication_lag_ms": lag_ms,
+            "circuit_breaker_replica_lagging": is_lagging
+        })),
+    )
+}
+

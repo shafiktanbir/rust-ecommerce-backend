@@ -20,6 +20,8 @@
 //     - Sync: multiple threads can access it simultaneously
 //   PgPool satisfies all of these.
 
+use std::sync::{atomic::AtomicBool, Arc};
+
 use axum::{
     routing::{get, post},
     Router,
@@ -29,15 +31,29 @@ use sqlx::PgPool;
 
 use crate::{
     config::AppConfig,
+    db::DbPools,
     handlers::{auth, health, orders, products, queue_stats},
 };
 
 /// Shared application state — injected into every handler via State<AppState>
 #[derive(Clone)]
 pub struct AppState {
-    pub db: PgPool,
+    pub db: DbPools,
     pub redis: RedisPool,
     pub config: AppConfig,
+    pub is_replica_lagging: Arc<AtomicBool>,
+}
+
+impl AppState {
+    /// Get the appropriate pool for read operations.
+    /// Uses read replica when healthy; falls back to writer pool if circuit breaker trips.
+    pub fn get_reader_pool(&self) -> &PgPool {
+        if self.is_replica_lagging.load(std::sync::atomic::Ordering::Relaxed) {
+            &self.db.writer
+        } else {
+            &self.db.reader
+        }
+    }
 }
 
 /// Build the complete application router with all routes registered.
@@ -45,6 +61,7 @@ pub fn create_router(state: AppState) -> Router {
     Router::new()
         // Health
         .route("/health", get(health::health_check))
+        .route("/health/db", get(health::db_health_check))
         // Auth
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
@@ -61,3 +78,4 @@ pub fn create_router(state: AppState) -> Router {
         // Attach shared state
         .with_state(state)
 }
+

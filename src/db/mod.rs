@@ -137,22 +137,70 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 
 use crate::config::AppConfig;
 
-/// Create and validate the PostgreSQL connection pool.
-///
-/// This function is async because establishing the initial connections requires network I/O.
-/// `PgPoolOptions` lets us tune the pool before connections are made.
-pub async fn create_pool(config: &AppConfig) -> PgPool {
-    PgPoolOptions::new()
-        // V1 starting point: 10 connections
-        // We will measure and tune this during load testing
+/// Dual database connection pools for Milestone V5 CQRS / Read-Write Splitting.
+#[derive(Clone, Debug)]
+pub struct DbPools {
+    /// Writer pool connected to primary PostgreSQL (handles INSERT, UPDATE, DELETE, transactions)
+    pub writer: PgPool,
+    /// Reader pool connected to secondary read replica (handles GET/catalog reads)
+    pub reader: PgPool,
+}
+
+/// Create and validate primary and replica PostgreSQL connection pools.
+pub async fn create_pools(config: &AppConfig) -> DbPools {
+    let writer = PgPoolOptions::new()
         .max_connections(10)
-        // How long to wait for a connection before returning an error
-        // If the pool is exhausted, requests will wait up to 30s
         .acquire_timeout(std::time::Duration::from_secs(30))
-        // Test the connection immediately — fail fast if DB is unreachable
         .connect(&config.database_url)
         .await
-        .expect("Failed to connect to PostgreSQL. Is Docker running? Is DATABASE_URL correct?")
+        .expect("Failed to connect to Primary PostgreSQL (DATABASE_URL)");
+
+    let reader = if config.read_database_url == config.database_url {
+        writer.clone()
+    } else {
+        PgPoolOptions::new()
+            .max_connections(20)
+            .acquire_timeout(std::time::Duration::from_secs(30))
+            .connect(&config.read_database_url)
+            .await
+            .unwrap_or_else(|err| {
+                tracing::warn!(
+                    "Failed to connect to Read Replica ({}), falling back to Primary pool: {}",
+                    config.read_database_url,
+                    err
+                );
+                writer.clone()
+            })
+    };
+
+    DbPools { writer, reader }
+}
+
+/// Query primary PostgreSQL's pg_stat_replication table to compute current replication lag in milliseconds.
+pub async fn check_replication_lag(writer_pool: &PgPool) -> Option<f64> {
+    let result: Result<Option<f64>, sqlx::Error> = sqlx::query_scalar!(
+        r#"
+        SELECT COALESCE(EXTRACT(EPOCH FROM (now() - reply_time)) * 1000.0, 0.0)::FLOAT8 AS "lag_ms!"
+        FROM pg_stat_replication
+        LIMIT 1
+        "#
+    )
+    .fetch_optional(writer_pool)
+    .await;
+
+    match result {
+        Ok(Some(lag)) => Some(lag),
+        Ok(None) => None,
+        Err(err) => {
+            tracing::debug!("Could not query pg_stat_replication: {}", err);
+            None
+        }
+    }
+}
+
+/// Create and validate the PostgreSQL connection pool (legacy single-pool helper).
+pub async fn create_pool(config: &AppConfig) -> PgPool {
+    create_pools(config).await.writer
 }
 
 /// Create and validate the Redis connection pool for V2 caching.
@@ -163,3 +211,4 @@ pub fn create_redis_pool(config: &AppConfig) -> deadpool_redis::Pool {
         .create_pool(Some(deadpool_redis::Runtime::Tokio1))
         .expect("Failed to create Redis connection pool")
 }
+

@@ -61,43 +61,73 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    tracing::info!("Starting Ecommerce Lab V2 (Redis Caching)");
+    tracing::info!("Starting Ecommerce Lab V5 (PostgreSQL Read Replicas & CQRS Read-Write Splitting)");
 
     // ─── Step 3: Load application config ────────────────────────────────────────
     let config = config::AppConfig::from_env();
-    tracing::info!(port = config.app_port, env = %config.app_env, "Configuration loaded");
+    tracing::info!(
+        port = config.app_port,
+        env = %config.app_env,
+        primary_db = %config.database_url,
+        replica_db = %config.read_database_url,
+        "Configuration loaded"
+    );
 
-    // ─── Step 4: Create database & Redis connection pools ──────────────────────────
-    // This is async because it establishes real TCP connections to PostgreSQL.
-    // If this panics, check: is Docker running? Is DATABASE_URL correct?
-    let pool = db::create_pool(&config).await;
-    tracing::info!("Database connection pool established (max_connections=10)");
+    // ─── Step 4: Create primary & replica database pools & Redis pool ─────────
+    let pools = db::create_pools(&config).await;
+    tracing::info!("Primary and Replica PostgreSQL connection pools established (CQRS Enabled)");
 
     let redis_pool = db::create_redis_pool(&config);
     tracing::info!("Redis connection pool established for V2 caching & V4 job queue");
 
-    // ─── Step 4b: Milestone V4 Background Worker Initialization ──────────────────
-    // Spawn 5 background worker Tokio tasks to process Redis queue jobs asynchronously
+    // ─── Step 4b: Milestone V5 Replication Lag Circuit Breaker Initializer ────
+    let is_replica_lagging = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let writer_pool_clone = pools.writer.clone();
+    let is_lagging_flag = is_replica_lagging.clone();
+
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+        loop {
+            interval.tick().await;
+            if let Some(lag) = db::check_replication_lag(&writer_pool_clone).await {
+                if lag > 500.0 {
+                    if !is_lagging_flag.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                        tracing::warn!(
+                            "⚠️ REPLICA LAGGING ({} ms > 500ms SLA)! Tripping Circuit Breaker -> Routing 100% of reads to Primary",
+                            lag
+                        );
+                    }
+                } else if lag < 100.0 {
+                    if is_lagging_flag.swap(false, std::sync::atomic::Ordering::Relaxed) {
+                        tracing::info!(
+                            "✅ REPLICA RECOVERED ({} ms)! Closing Circuit Breaker -> Resuming Replica reads",
+                            lag
+                        );
+                    }
+                }
+            }
+        }
+    });
+    tracing::info!("Milestone V5: Replication lag circuit breaker worker spawned (Threshold: 500ms)");
+
+    // ─── Step 4c: Milestone V4 Background Worker Initialization ──────────────────
     jobs::worker::start_worker_pool(redis_pool.clone(), 5);
     tracing::info!("Milestone V4: Background job queue workers initialized (5 workers per instance)");
 
-    // ─── Step 5: Run pending migrations ─────────────────────────────────────────
-    // sqlx::migrate! embeds all files from the `migrations/` directory at compile time.
-    // This ensures the DB schema is always in sync when the app starts.
-    match sqlx::migrate!("./migrations").run(&pool).await {
-        Ok(_) => tracing::info!("Database migrations applied successfully"),
+    // ─── Step 5: Run pending migrations on Primary DB ───────────────────────────
+    match sqlx::migrate!("./migrations").run(&pools.writer).await {
+        Ok(_) => tracing::info!("Database migrations applied successfully to Primary DB"),
         Err(e) => tracing::warn!("Database migration skipped or notice: {e}"),
     }
 
     // ─── Step 6: Build the application router ───────────────────────────────────
     let state = AppState {
-        db: pool,
+        db: pools,
         redis: redis_pool,
         config: config.clone(),
+        is_replica_lagging,
     };
     let app = routes::create_router(state)
-        // TraceLayer logs every request: method, path, status, latency
-        // This is your first observability layer — you'll rely on it heavily
         .layer(TraceLayer::new_for_http());
 
     // ─── Step 7: Bind TCP listener and serve ─────────────────────────────────────
@@ -107,13 +137,11 @@ async fn main() {
         .expect("Failed to bind TCP listener — is the port already in use?");
 
     tracing::info!("Server listening on http://{}", addr);
-    tracing::info!("Health check: http://{}/health", addr);
+    tracing::info!("Health check: http://{}/health | http://{}/health/db", addr, addr);
     tracing::info!("Auth API: http://{}/auth/register | http://{}/auth/login", addr, addr);
     tracing::info!("Products API: http://{}/products", addr);
     tracing::info!("Orders API: http://{}/orders", addr);
 
-    // axum::serve hands connections to Tokio tasks indefinitely
-    // This future only resolves if the server encounters a fatal error
     axum::serve(listener, app)
         .await
         .expect("Server encountered a fatal error");
