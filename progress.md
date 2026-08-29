@@ -204,7 +204,27 @@ Write `load-tests/v1_products.js` (k6 script), run baseline load test at 10/100/
 
 ---
 
+### Session 7 — 2026-08-29 (PostgreSQL Streaming Replication Infrastructure Deep-Dive Masterclass)
+
+**Goal:** Conduct a comprehensive first-principles deep dive into PostgreSQL Physical Streaming Replication infrastructure (`init-primary-replication.sh`, `start-replica.sh`), WAL receiver/sender background process loop, CQRS dual connection pools, and Cloud VPC production security practices.
+
+**Completed:**
+- **Script Line-by-Line Breakdown**:
+  - Analyzed [`scripts/init-primary-replication.sh`](scripts/init-primary-replication.sh) (`pg_hba.conf` `replication` host permission, `WITH REPLICATION` user creation, `SELECT pg_reload_conf()`).
+  - Analyzed [`scripts/start-replica.sh`](scripts/start-replica.sh) (`pg_isready` readiness polling, `$PGDATA` initialization checks, `rm -rf "${PGDATA:?}"/*` safety guards, `pg_basebackup -R` standby signal & connection auto-config generation, `exec` PID 1 process replacement).
+- **Internal Database Engine Loop Mechanics**:
+  - Evaluated how `pg_basebackup -R` generates `standby.signal` and `postgresql.auto.conf`.
+  - Traced PostgreSQL kernel processes: `walreceiver` process on Replica connecting via persistent TCP socket to `walsender` process on Primary, continuously fetching and replaying WAL binary logs in a 24/7 background loop.
+- **Production Cloud VPC Architecture**:
+  - Compared local Docker bridge networking (`postgres` DNS resolution) vs. Cloud VPC Production (`10.0.x.x` Private Subnets, Security Groups, `hostssl`, `scram-sha-256`, and TLS encryption in transit).
+- **Study Notes Artifacts**:
+  - Created [`docs/study-notes-postgresql-streaming-replication.md`](docs/study-notes-postgresql-streaming-replication.md) consolidating all replication concepts, code breakdowns, and cloud SRE guidelines.
+  - Created [`docs/study-notes-read-your-own-writes-sticky-sessions.md`](docs/study-notes-read-your-own-writes-sticky-sessions.md) detailing distributed consistency race conditions, timeline diagrams, and Redis sticky session routing in Rust.
+
+---
+
 ## Resume & Interview Case Study Plan
+
 
 > *Plan for polishing this project as a high-impact portfolio case study after scaling milestones are complete.*
 

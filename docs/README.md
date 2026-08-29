@@ -43,6 +43,8 @@ docs/
 * 📊 [**Performance Engineering Reference**](performance.md): Latency metrics, throughput (RPS), error rates, database connection pool tuning, and Little's Law.
 * 🧮 [**Study Notes: Converting RPS to Real User Scale**](study-notes-rps-to-user-scale.md): Mathematical conversion formulas (RPS → Concurrent Users → DAU → MAU), worked calculations, investor pitch response script, and practice problems.
 * 📐 [**Study Notes: Database Scaling Benchmarks & Sizing Formulas**](study-notes-database-scaling-formulas.md): Market scaling tiers (Tier 1–5), Little's Law ($L = \lambda \cdot W$), PostgreSQL connection pool sizing math, VU-to-RPS formulas, and empirical V4 bottleneck case study.
+* 🐘 [**Study Notes: PostgreSQL Streaming Replication & CQRS**](study-notes-postgresql-streaming-replication.md): Physical streaming replication, `init-primary-replication.sh`, `start-replica.sh`, `walreceiver`/`walsender`, dual pools, and lag circuit breaker.
+* 🛡️ [**Study Notes: Read-Your-Own-Writes Consistency & Sticky Sessions**](study-notes-read-your-own-writes-sticky-sessions.md): Distributed systems race conditions, timeline flowcharts, and Redis-backed sticky session routing in Rust & PostgreSQL.
 * 📈 [**Milestone V3 Live Cloud Benchmark Results**](v3_hetzner_benchmark_results.md): Raw k6 performance metrics for 3,000 VUs sustaining **4,931.11 RPS** with **100.00% success rate** on Hetzner Cloud.
 
 

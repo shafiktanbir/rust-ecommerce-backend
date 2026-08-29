@@ -35,6 +35,8 @@ use crate::{
     handlers::{auth, health, orders, products, queue_stats},
 };
 
+use deadpool_redis::redis::AsyncCommands;
+
 /// Shared application state — injected into every handler via State<AppState>
 #[derive(Clone)]
 pub struct AppState {
@@ -52,6 +54,39 @@ impl AppState {
             &self.db.writer
         } else {
             &self.db.reader
+        }
+    }
+
+    /// Read-Your-Own-Writes Sticky Session Pool Switcher:
+    /// Checks if a specific user/session has recently performed a write operation (within sticky TTL window).
+    /// If sticky flag is present in Redis, routes reads directly to Primary DB (writer pool).
+    pub async fn get_reader_pool_for_user(&self, user_id: Option<&str>) -> &PgPool {
+        // 1. Global Circuit Breaker check
+        if self.is_replica_lagging.load(std::sync::atomic::Ordering::Relaxed) {
+            return &self.db.writer;
+        }
+
+        // 2. User Sticky Session check
+        if let Some(uid) = user_id {
+            if let Ok(mut conn) = self.redis.get().await {
+                let key = format!("sticky_primary:{}", uid);
+                let exists: bool = conn.exists(&key).await.unwrap_or(false);
+                if exists {
+                    tracing::debug!(user_id = %uid, "STICKY SESSION ACTIVE: Routing read directly to Primary DB");
+                    return &self.db.writer;
+                }
+            }
+        }
+
+        &self.db.reader
+    }
+
+    /// Mark a user as sticky to Primary DB for `ttl_secs` after performing a write mutation.
+    pub async fn set_user_sticky_primary(&self, user_id: &str, ttl_secs: u64) {
+        if let Ok(mut conn) = self.redis.get().await {
+            let key = format!("sticky_primary:{}", user_id);
+            let _: Result<(), _> = conn.set_ex(&key, "1", ttl_secs).await;
+            tracing::debug!(user_id = %user_id, ttl = ttl_secs, "Marked user sticky to Primary DB");
         }
     }
 }

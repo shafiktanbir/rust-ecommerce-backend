@@ -49,6 +49,9 @@ TARGET_URL="http://<LB_IP>:8080" k6 run load-tests/v3_stress_3000vu.js
 
 # V4 Realistic Mixed Workload Benchmark (70% Read / 15% Detail / 15% Authenticated Order Writes)
 TARGET_URL="http://<LB_IP>:8080" k6 run load-tests/v4_realistic_mixed_workload.js
+
+# V5 CQRS Read Replicas & Read-Your-Own-Writes Consistency Benchmark
+TARGET_URL="http://localhost:8080" k6 run load-tests/v5_cqrs_replication_test.js
 ```
 
 ## Recording Results
