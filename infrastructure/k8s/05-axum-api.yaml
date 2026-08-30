@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: axum-api-service
+  namespace: ecommerce-lab
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+  selector:
+    app: axum-api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: axum-api
+  namespace: ecommerce-lab
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: axum-api
+  template:
+    metadata:
+      labels:
+        app: axum-api
+    spec:
+      containers:
+        - name: axum-api
+          image: ecommerce_lab:v7
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: ecom-config
+            - secretRef:
+                name: ecom-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health/db
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5

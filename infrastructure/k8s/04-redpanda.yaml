@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: redpanda-service
+  namespace: ecommerce-lab
+spec:
+  ports:
+    - name: kafka
+      port: 9092
+      targetPort: 9092
+  selector:
+    app: redpanda
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redpanda
+  namespace: ecommerce-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redpanda
+  template:
+    metadata:
+      labels:
+        app: redpanda
+    spec:
+      containers:
+        - name: redpanda
+          image: docker.redpanda.com/redpandadata/redpanda:v23.3.11
+          command:
+            - redpanda
+            - start
+            - --mode=dev-container
+            - --smp=1
+            - --memory=1G
+            - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+            - --advertise-kafka-addr=PLAINTEXT://redpanda-service:9092
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          ports:
+            - containerPort: 9092

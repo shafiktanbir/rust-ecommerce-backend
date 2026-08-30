@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-primary
+  namespace: ecommerce-lab
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    app: postgres-primary
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-primary
+  namespace: ecommerce-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-primary
+  template:
+    metadata:
+      labels:
+        app: postgres-primary
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          env:
+            - name: POSTGRES_PASSWORD
+              value: postgres
+            - name: POSTGRES_DB
+              value: ecommerce_lab
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          ports:
+            - containerPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-replica
+  namespace: ecommerce-lab
+spec:
+  ports:
+    - port: 5435
+      targetPort: 5432
+  selector:
+    app: postgres-replica
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-replica
+  namespace: ecommerce-lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-replica
+  template:
+    metadata:
+      labels:
+        app: postgres-replica
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          env:
+            - name: POSTGRES_PASSWORD
+              value: postgres
+            - name: POSTGRES_DB
+              value: ecommerce_lab
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          ports:
+            - containerPort: 5432
