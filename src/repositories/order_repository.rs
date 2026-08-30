@@ -107,7 +107,25 @@ pub async fn create_order(
         });
     }
 
+    // Insert outbox event inside the exact same PostgreSQL ACID transaction
+    let outbox_payload = serde_json::json!({
+        "order_id": order.id,
+        "user_id": order.user_id,
+        "total_amount": order.total_amount,
+        "items_count": item_responses.len(),
+    });
+
+    super::outbox_repository::insert_outbox_event_tx(
+        &mut tx,
+        "Order",
+        order.id,
+        "OrderCreated",
+        outbox_payload,
+    )
+    .await?;
+
     tx.commit().await?;
+
 
     Ok(OrderResponseDto {
         id: order.id,

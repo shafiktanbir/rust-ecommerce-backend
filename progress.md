@@ -1,6 +1,6 @@
 # Rust E-Commerce Scaling Lab — Progress
 
-## Current Version: **V5 — Database Scaling, Read Replicas & CQRS Read-Write Splitting (COMPLETE ✅)**
+## Current Version: **V6 — Transactional Outbox Pattern & Kafka Event Streaming (COMPLETE ✅)**
 
 ---
 
@@ -13,8 +13,9 @@
 | **V3** | ✅ **DONE** | Docker Compose multi-instance cluster + Nginx Load Balancer (3x Axum workers) |
 | **V4** | ✅ **DONE** | Redis-backed asynchronous background job queue & Tokio worker pool |
 | **V5** | ✅ **DONE** | PostgreSQL Primary/Replica streaming replication, CQRS dual pools, lag circuit breaker, composite indexes |
-| **V6** | ⬜ Not started | Kafka event-driven processing |
+| **V6** | ✅ **DONE** | PostgreSQL Transactional Outbox Pattern + Apache Kafka Event Streaming (Redpanda) + Consumer Groups |
 | **V7** | ⬜ Not started | Docker + Kubernetes |
+
 | **V8** | ⬜ Not started | Autoscaling + observability (Prometheus/Grafana) |
 | **V9** | ⬜ Not started | Failure testing + resilience |
 | **V10** | ⬜ Not started | 10k concurrent-user load testing |
@@ -60,17 +61,17 @@
 
 ### Multi-Milestone Benchmark Comparison
 
-| Metric | V1 500 VUs (Pg Monolith) | V2 500 VUs (Redis Cache-Aside) | V3 3,000 VUs (Hetzner Cloud Cluster) | V4 2,000 VUs (Decoupled Job Queue Engine) | Improvement / Status |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Total Requests** | 55,915 | 103,061 | 307,483 | **58,844 (Mixed Workload)** | 🚀 **58.8k Mixed Real-User Operations** |
-| **Success Rate** | 100.00% | 100.00% | 100.00% | **100.00%** (58,844 / 58,844) | 🎯 **100.00% Zero-Error Scale** |
-| **Median Read Latency (p50)** | 186.84 ms | 156.99 ms | 215.69 ms | **1.00 ms** | ⚡ **Sub-Millisecond Read Latency** |
-| **Median Write Checkout (p50)**| N/A | N/A | N/A | **5.00 ms** | ⚡ **-99% Fast Ingress Checkout** |
-| **95th Percentile Read (p95)** | 574.92 ms | 371.52 ms | 452.68 ms | **21.00 ms** | 🟢 **Sub-30ms Read Tail** |
-| **95th Percentile Write (p95)** | N/A | N/A | 1,400.00 ms (Sync Fail) | **103.00 ms (Decoupled Queue)** | 🚀 **-92.6% Latency Reduction** |
-| **Failed Queue Jobs** | N/A | N/A | N/A | **0 failed jobs** | 🛡️ **100% Background Queue Reliability** |
+| Metric | V1 500 VUs (Pg Monolith) | V2 500 VUs (Redis Cache-Aside) | V3 3,000 VUs (Hetzner Cloud Cluster) | V4 2,000 VUs (Decoupled Job Queue Engine) | V6 1,500 VUs (Outbox + Kafka Streaming) | Improvement / Status |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Total Requests** | 55,915 | 103,061 | 307,483 | 58,844 | **7,535** | 🚀 **Multi-Service Kafka Fan-Out** |
+| **Success Rate** | 100.00% | 100.00% | 100.00% | 100.00% | **100.00%** (7,535 / 7,535) | 🎯 **100.00% Zero-Error Scale** |
+| **Median Read Latency (p50)** | 186.84 ms | 156.99 ms | 215.69 ms | 1.00 ms | **14.00 ms** | ⚡ **Offloaded to Replica DB** |
+| **Atomic Outbox Orders**| N/A | N/A | N/A | N/A | **3,738 orders** | 🛡️ **100% Zero Data Loss (Postgres ACID)** |
+| **95th Percentile Read (p95)** | 574.92 ms | 371.52 ms | 452.68 ms | 21.00 ms | **35.00 ms** | 🟢 **Sub-35ms Read Tail** |
+| **Kafka Event Delivery** | N/A | N/A | N/A | N/A | **100% Delivered** | 📡 **Multi-Consumer Group Ingestion** |
 
-*Saved live raw metrics to [`docs/v3_hetzner_benchmark_results.md`](docs/v3_hetzner_benchmark_results.md) and [`docs/v4_benchmark_results.md`](docs/v4_benchmark_results.md).*
+*Saved live raw metrics to [`docs/v3_hetzner_benchmark_results.md`](docs/v3_hetzner_benchmark_results.md), [`docs/v4_benchmark_results.md`](docs/v4_benchmark_results.md), and [`docs/v6_benchmark_results.md`](docs/v6_benchmark_results.md).*
+
 
 ---
 
@@ -222,6 +223,29 @@ Write `load-tests/v1_products.js` (k6 script), run baseline load test at 10/100/
   - Created [`docs/study-notes-read-your-own-writes-sticky-sessions.md`](docs/study-notes-read-your-own-writes-sticky-sessions.md) detailing distributed consistency race conditions, timeline diagrams, and Redis sticky session routing in Rust.
 
 ---
+
+### Session 8 — 2026-08-29 (Milestone V6: Transactional Outbox Pattern & Apache Kafka Event Streaming)
+
+**Goal:** Implement PostgreSQL Transactional Outbox Pattern, Apache Kafka (Redpanda) event producer/relay, and independent Consumer Groups in Rust.
+
+**Completed:**
+- **Infrastructure & Migration**:
+  - Created migration `migrations/003_v6_outbox.sql` for the `outbox` table with pending index.
+  - Added Redpanda Kafka broker container (`ecommerce_lab_redpanda`) to `docker-compose.yml` (ports 9092 / 29092).
+- **Atomic Outbox Persistence**:
+  - Updated `order_repository::create_order` to write `Order` and `OrderCreated` outbox payload in the same atomic `BEGIN...COMMIT` PostgreSQL transaction.
+  - Removed direct Redis queue calls from `order_service.rs` (order checkout path is 100% atomic in PostgreSQL).
+- **Outbox Relay & Kafka Consumer Groups**:
+  - Implemented Outbox Relay Worker (`src/events/outbox_relay.rs`) polling pending outbox rows using `SKIP LOCKED`, producing to Kafka topic `ecom-order-events`, and updating `status = 'processed'`.
+  - Implemented 2 independent Consumer Groups (`notification-service-group` and `analytics-service-group`) in `src/events/consumers.rs`.
+- **E2E & Live System Verification**:
+  - Verified `POST /orders` creates an order + outbox event atomically.
+  - Confirmed Outbox Relay published event to Kafka, both Consumer Groups ingested offset 0, and PostgreSQL `outbox` record was marked `status = 'processed'` with timestamp `processed_at`.
+- **Study Notes**:
+  - Created [`docs/study-notes-v6-outbox-kafka-architecture.md`](docs/study-notes-v6-outbox-kafka-architecture.md) detailing outbox design, Kafka replayability, and trade-offs.
+
+---
+
 
 ## Resume & Interview Case Study Plan
 

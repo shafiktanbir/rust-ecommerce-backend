@@ -29,6 +29,7 @@
 mod config;
 mod db;
 mod errors;
+mod events;
 mod handlers;
 mod jobs;
 mod middleware;
@@ -44,15 +45,9 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 #[tokio::main]
 async fn main() {
     // ─── Step 1: Load .env file (only in development) ───────────────────────────
-    // dotenvy reads .env and sets environment variables.
-    // In production, variables are set by the deployment system (Docker, K8s secrets).
     dotenvy::dotenv().ok();
 
     // ─── Step 2: Initialize structured logging ───────────────────────────────────
-    // tracing-subscriber reads RUST_LOG env var to set log level.
-    // Example: RUST_LOG=info → logs info, warn, error
-    //          RUST_LOG=debug → verbose, including sqlx query logs
-    //          RUST_LOG=ecommerce_lab=debug,sqlx=warn → fine-grained control
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -61,7 +56,7 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    tracing::info!("Starting Ecommerce Lab V5 (PostgreSQL Read Replicas & CQRS Read-Write Splitting)");
+    tracing::info!("Starting Ecommerce Lab V6 (Transactional Outbox Pattern & Kafka Event Streaming)");
 
     // ─── Step 3: Load application config ────────────────────────────────────────
     let config = config::AppConfig::from_env();
@@ -70,6 +65,7 @@ async fn main() {
         env = %config.app_env,
         primary_db = %config.database_url,
         replica_db = %config.read_database_url,
+        kafka_brokers = %config.kafka_brokers,
         "Configuration loaded"
     );
 
@@ -113,6 +109,16 @@ async fn main() {
     // ─── Step 4c: Milestone V4 Background Worker Initialization ──────────────────
     jobs::worker::start_worker_pool(redis_pool.clone(), 5);
     tracing::info!("Milestone V4: Background job queue workers initialized (5 workers per instance)");
+
+    // ─── Step 4d: Milestone V6 Transactional Outbox Relay & Kafka Consumers ────
+    let kafka_producer = events::producer::KafkaProducer::new(config.kafka_brokers.clone());
+    events::outbox_relay::start_outbox_relay(pools.writer.clone(), kafka_producer);
+    tracing::info!("Milestone V6: Transactional Outbox Relay Worker spawned");
+
+    events::consumers::start_notification_consumer(config.kafka_brokers.clone());
+    events::consumers::start_analytics_consumer(config.kafka_brokers.clone());
+    tracing::info!("Milestone V6: Kafka Consumer Groups ('notification-service-group', 'analytics-service-group') initialized");
+
 
     // ─── Step 5: Run pending migrations on Primary DB ───────────────────────────
     match sqlx::migrate!("./migrations").run(&pools.writer).await {

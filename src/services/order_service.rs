@@ -1,23 +1,17 @@
 // src/services/order_service.rs
 
-use deadpool_redis::Pool as RedisPool;
 use sqlx::PgPool;
 use tracing::info;
 use uuid::Uuid;
 
 use crate::{
     errors::{AppError, AppResult},
-    jobs::{
-        queue::enqueue_job,
-        types::{Job, JobPayload},
-    },
     models::order::{CreateOrderDto, Order, OrderResponseDto},
     repositories::order_repository,
 };
 
 pub async fn create_order(
     pool: &PgPool,
-    redis_pool: &RedisPool,
     user_id: Uuid,
     dto: CreateOrderDto,
 ) -> AppResult<OrderResponseDto> {
@@ -27,30 +21,13 @@ pub async fn create_order(
         ));
     }
 
-    // 1. Fast atomic database transaction (inventory decrement + order insert)
+    // 1. Atomic PostgreSQL transaction (inventory decrement + order insert + outbox event)
     let order = order_repository::create_order(pool, user_id, &dto.items).await?;
 
-    // 2. Decoupled Asynchronous Job Enqueueing (< 2ms execution budget)
-    let email_job = Job::new(JobPayload::SendOrderConfirmationEmail {
-        order_id: order.id,
-        user_id: order.user_id,
-        total_amount: order.total_amount,
-    });
-
-    let invoice_job = Job::new(JobPayload::GenerateInvoice {
-        order_id: order.id,
-        user_id: order.user_id,
-    });
-
-    if let Err(e) = enqueue_job(redis_pool, &email_job).await {
-        tracing::error!("Failed to enqueue email job for order {}: {:?}", order.id, e);
-    }
-
-    if let Err(e) = enqueue_job(redis_pool, &invoice_job).await {
-        tracing::error!("Failed to enqueue invoice job for order {}: {:?}", order.id, e);
-    }
-
-    info!("Order ID {} created instantly and 2 background jobs enqueued", order.id);
+    info!(
+        "Order ID {} created atomically with outbox event in PostgreSQL",
+        order.id
+    );
 
     Ok(order)
 }

@@ -15,6 +15,7 @@ pub struct AppConfig {
     pub database_url: String,
     pub read_database_url: String,
     pub redis_url: String,
+    pub kafka_brokers: String,
     pub jwt_secret: String,
     pub app_port: u16,
     pub app_env: String,
@@ -35,6 +36,9 @@ impl AppConfig {
         let redis_url = std::env::var("REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
 
+        let kafka_brokers = std::env::var("KAFKA_BROKERS")
+            .unwrap_or_else(|_| "localhost:9092".to_string());
+
         let jwt_secret = std::env::var("JWT_SECRET")
             .unwrap_or_else(|_| "supersecret_jwt_key_ecommerce_lab_2026".to_string());
 
@@ -49,11 +53,13 @@ impl AppConfig {
             database_url,
             read_database_url,
             redis_url,
+            kafka_brokers,
             jwt_secret,
             app_port,
             app_env,
         }
     }
+
 
     pub fn is_production(&self) -> bool {
         self.app_env == "production"

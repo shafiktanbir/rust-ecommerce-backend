@@ -23,7 +23,8 @@ pub async fn create_order(
     let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::Unauthorized("Invalid user ID in token".into()))?;
 
-    let order = order_service::create_order(&state.db.writer, &state.redis, user_id, payload).await?;
+    let order = order_service::create_order(&state.db.writer, user_id, payload).await?;
+
     
     // 🛡️ Read-Your-Own-Writes Consistency: Mark user sticky to Primary DB for 5 seconds after order checkout
     state.set_user_sticky_primary(&claims.sub, 5).await;
