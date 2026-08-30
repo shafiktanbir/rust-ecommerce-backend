@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO outbox (id, aggregate_type, aggregate_id, event_type, payload, status, created_at)\n        VALUES ($1, $2, $3, $4, $5, 'pending', NOW())\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Varchar",
+        "Uuid",
+        "Varchar",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "56a1cf6c51d3b4ccd6158a1e95cd918f4d23bab6c22ea6f7f67d188e8dc6e6e8"
+}

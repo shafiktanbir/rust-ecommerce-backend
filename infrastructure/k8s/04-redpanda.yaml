@@ -30,11 +30,14 @@ spec:
         - name: redpanda
           image: docker.redpanda.com/redpandadata/redpanda:v23.3.11
           command:
+            - /entrypoint.sh
             - redpanda
             - start
             - --mode=dev-container
             - --smp=1
-            - --memory=1G
+            - --memory=512M
+            - --reserve-memory=0M
+            - --overprovisioned
             - --kafka-addr=PLAINTEXT://0.0.0.0:9092
             - --advertise-kafka-addr=PLAINTEXT://redpanda-service:9092
           resources:

@@ -8,8 +8,11 @@ if k3d cluster list | grep -q "$CLUSTER_NAME"; then
   echo "Cluster $CLUSTER_NAME already exists. Starting if stopped..."
   k3d cluster start "$CLUSTER_NAME" || true
 else
-  k3d cluster create "$CLUSTER_NAME" --port "8888:80@loadbalancer"
+  k3d cluster create "$CLUSTER_NAME" \
+    --port "8888:80@loadbalancer" \
+    --k3s-arg "--kubelet-arg=eviction-hard=imagefs.available<2%,nodefs.available<2%@server:*"
 fi
+
 
 echo "=== Step 2: Building Docker Container Image (cargo-chef) ==="
 docker build -t ecommerce_lab:v7 .

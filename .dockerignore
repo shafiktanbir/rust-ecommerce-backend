@@ -1,0 +1,7 @@
+target/
+.git/
+.agents/
+infrastructure/v3-nginx-cluster/
+load-tests/
+docs/
+*.md

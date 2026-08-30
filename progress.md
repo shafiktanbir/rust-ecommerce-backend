@@ -1,6 +1,6 @@
 # Rust E-Commerce Scaling Lab — Progress
 
-## Current Version: **V6 — Transactional Outbox Pattern & Kafka Event Streaming (COMPLETE ✅)**
+## Current Version: **V7 — Docker & Kubernetes Containerization & Orchestration (COMPLETE ✅)**
 
 ---
 
@@ -14,9 +14,10 @@
 | **V4** | ✅ **DONE** | Redis-backed asynchronous background job queue & Tokio worker pool |
 | **V5** | ✅ **DONE** | PostgreSQL Primary/Replica streaming replication, CQRS dual pools, lag circuit breaker, composite indexes |
 | **V6** | ✅ **DONE** | PostgreSQL Transactional Outbox Pattern + Apache Kafka Event Streaming (Redpanda) + Consumer Groups |
-| **V7** | ⬜ Not started | Docker + Kubernetes |
+| **V7** | ✅ **DONE** | Docker (`cargo-chef`) + Kubernetes (`k3d`, Ingress, Liveness/Readiness probes) |
 
 | **V8** | ⬜ Not started | Autoscaling + observability (Prometheus/Grafana) |
+
 | **V9** | ⬜ Not started | Failure testing + resilience |
 | **V10** | ⬜ Not started | 10k concurrent-user load testing |
 
@@ -243,6 +244,28 @@ Write `load-tests/v1_products.js` (k6 script), run baseline load test at 10/100/
   - Confirmed Outbox Relay published event to Kafka, both Consumer Groups ingested offset 0, and PostgreSQL `outbox` record was marked `status = 'processed'` with timestamp `processed_at`.
 - **Study Notes**:
   - Created [`docs/study-notes-v6-outbox-kafka-architecture.md`](docs/study-notes-v6-outbox-kafka-architecture.md) detailing outbox design, Kafka replayability, and trade-offs.
+
+### Session 9 — 2026-08-30 (Milestone V7: Docker & Kubernetes Orchestration, cargo-chef & Local K3s Cluster)
+
+**Goal:** Evolve local container infrastructure into a production-grade Kubernetes cluster (`k3d`), implementing multi-stage container optimization via `cargo-chef`, health probes, stateful services, and declarative manifests.
+
+**Completed:**
+- **Container Build Optimization (`cargo-chef`)**:
+  - Upgraded [Dockerfile](file:///home/shafikul/Documents/coding/research-playground-loop/rust%20ecommerse-loop/Dockerfile) to a 3-stage `cargo-chef` setup caching Rust dependency layers across builds.
+  - Added [.dockerignore](file:///home/shafikul/Documents/coding/research-playground-loop/rust%20ecommerse-loop/.dockerignore) excluding local 6GB `target/` build folder (reclaiming 10.64GB Docker disk space).
+- **Declarative K8s Manifest Tree (`infrastructure/k8s/`)**:
+  - `00-namespace.yaml`: Created `ecommerce-lab` namespace.
+  - `01-configmap-secrets.yaml`: Declarative `ConfigMap` and `Secret` objects.
+  - `02-postgres.yaml`: `Deployment` & `Service` for Pg Primary (5432) and Read Replica (5435) with resource limits.
+  - `03-redis.yaml`: `Deployment` & `Service` for Redis 7 (6379).
+  - `04-redpanda.yaml`: `Deployment` & `Service` for Redpanda Kafka broker (9092).
+  - `05-axum-api.yaml`: `Deployment` (3 replicas) for Axum API with `livenessProbe` (`GET /health`) & `readinessProbe` (`GET /health/db`).
+  - `06-ingress.yaml`: Ingress controller routing external HTTP requests to `axum-api-service`.
+- **Local K3s Automation & Verification**:
+  - Created [deploy-k3d.sh](file:///home/shafikul/Documents/coding/research-playground-loop/rust%20ecommerse-loop/scripts/deploy-k3d.sh) and [teardown-k3d.sh](file:///home/shafikul/Documents/coding/research-playground-loop/rust%20ecommerse-loop/scripts/teardown-k3d.sh).
+  - Configured custom `eviction-hard < 2%` K3s flags to handle host disk space constraints cleanly.
+  - Verified 100% pod readiness (`3/3 axum-api`, `1/1 postgres-primary`, `1/1 postgres-replica`, `1/1 redis`, `1/1 redpanda`).
+  - Verified live E2E HTTP endpoints: `curl http://localhost:8888/health` (200 OK), `curl http://localhost:8888/health/db` (200 OK), `POST /products` (201 Created), and `GET /products` (200 OK).
 
 ---
 
